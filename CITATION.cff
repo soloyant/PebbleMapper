@@ -1,0 +1,87 @@
+# Citation metadata for PebbleMapper. GitHub renders this as "Cite this repository".
+cff-version: 1.2.0
+message: "If you use PebbleMapper, please cite it as below, and cite Soloy et al. (2020): the method paper for its Mask R-CNN detector and for the approach the pipeline follows."
+type: software
+title: "PebbleMapper: grain sizes from photographs and drone orthos"
+abstract: "Detects and measures clasts (pebbles, cobbles) in scaled photographs and drone ortho-images, and turns the measurements into grain-size distributions, maps, zonal statistics, validation figures and reports. Detection is model-agnostic: Mask R-CNN is built in and other detectors plug in."
+authors:
+  - family-names: Soloy
+    given-names: Antoine
+    orcid: "https://orcid.org/0000-0002-8597-2858"
+    affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+version: 1.0.0
+date-released: 2026-09-20
+license: MIT
+repository-code: "https://github.com/soloyant/pebblemapper"
+keywords:
+  - grain size
+  - clast detection
+  - sedimentology
+  - coastal geomorphology
+  - Mask R-CNN
+  - UAV
+  - quadrat
+references:
+  - type: article
+    title: "A deep learning-based method for quantifying and mapping the grain size on pebble beaches"
+    authors:
+      - family-names: Soloy
+        given-names: Antoine
+        orcid: "https://orcid.org/0000-0002-8597-2858"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Turki
+        given-names: Imen
+        orcid: "https://orcid.org/0000-0002-5919-2620"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Fournier
+        given-names: Matthieu
+        orcid: "https://orcid.org/0000-0002-4119-5399"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Costa
+        given-names: Stéphane
+        orcid: "https://orcid.org/0000-0001-9347-3920"
+        affiliation: "Shoreline, Environment, Remote Sensing, Geomatics Laboratory (LETG), University of Caen Normandy, CNRS UMR 6554"
+      - family-names: Peuziat
+        given-names: Bastien
+        orcid: "https://orcid.org/0000-0002-9648-5588"
+        affiliation: "Shoreline, Environment, Remote Sensing, Geomatics Laboratory (LETG), University of Caen Normandy, CNRS UMR 6554"
+      - family-names: Lecoq
+        given-names: Nicolas
+        orcid: "https://orcid.org/0000-0002-5922-3175"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+    journal: "Remote Sensing"
+    year: 2020
+    volume: 12
+    issue: 21
+    doi: "10.3390/rs12213659"
+    notes: "The method paper: the Mask R-CNN clast detector PebbleMapper ships, and the approach its pipeline follows (detection across ortho-images tile by tile, grain-size mapping, validation against quadrat photographs)."
+  - type: data
+    title: "PebbleMapper: trained Mask R-CNN weights for clast detection (mask_rcnn_clasts.h5)"
+    authors:
+      - family-names: Soloy
+        given-names: Antoine
+        orcid: "https://orcid.org/0000-0002-8597-2858"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Turki
+        given-names: Imen
+        orcid: "https://orcid.org/0000-0002-5919-2620"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Fournier
+        given-names: Matthieu
+        orcid: "https://orcid.org/0000-0002-4119-5399"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+      - family-names: Costa
+        given-names: Stéphane
+        orcid: "https://orcid.org/0000-0001-9347-3920"
+        affiliation: "Shoreline, Environment, Remote Sensing, Geomatics Laboratory (LETG), University of Caen Normandy, CNRS UMR 6554"
+      - family-names: Peuziat
+        given-names: Bastien
+        orcid: "https://orcid.org/0000-0002-9648-5588"
+        affiliation: "Shoreline, Environment, Remote Sensing, Geomatics Laboratory (LETG), University of Caen Normandy, CNRS UMR 6554"
+      - family-names: Lecoq
+        given-names: Nicolas
+        orcid: "https://orcid.org/0000-0002-5922-3175"
+        affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
+    doi: "10.5281/zenodo.20779877"
+    license: CC-BY-4.0
+    notes: "Record to be published on Zenodo; the DOI resolves once it is."

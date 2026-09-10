@@ -1,0 +1,25 @@
+{
+  "model": "maskrcnn",
+  "model_version": "1.0.0",
+  "weights": "model_weights/mask_rcnn_clasts.h5 (or models/maskrcnn/)",
+  "params": {
+    "resolution": 0.000551,
+    "min_confidence": 0.7,
+    "devicemode": "gpu",
+    "devicenumber": 0,
+    "frame_excluded": {
+      "thickness_m": 0.02,
+      "inset_px": 40,
+      "measured_size_m": [
+        0.7956,
+        0.7956
+      ]
+    }
+  },
+  "crs": null,
+  "gsd_m": 0.000551,
+  "n_tiles": null,
+  "tool_version": "1.0.0",
+  "license": "MIT (code) / CC-BY-4.0 weights (doi:10.5281/zenodo.20779877)",
+  "timestamp": "2026-09-20T17:31:17"
+}

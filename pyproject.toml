@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pebblemapper"
+version = "1.0.0"
+description = "Grain sizes from photographs and drone orthos: Mask R-CNN clast detection, measurement and grain-size mapping."
+readme = "README.md"
+requires-python = ">=3.9,<3.10"
+authors = [{name = "Antoine Soloy"}]
+license = {file = "LICENSE"}
+keywords = ["sedimentology", "grain-size", "mask-rcnn", "uav", "remote-sensing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+[project.urls]
+Repository = "https://github.com/soloyant/pebblemapper"
+
+[tool.setuptools.packages.find]
+include = ["functions*", "gui*", "detectors*", "mrcnn*"]
+exclude = ["tests*", "datasets*", "model_weights*"]

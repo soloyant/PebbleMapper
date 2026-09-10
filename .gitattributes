@@ -1,0 +1,16 @@
+# Normalise line endings; keep binaries and data files untouched.
+* text=auto
+*.py text
+*.md text
+*.yml text
+*.json text
+*.csv text
+*.bat text eol=crlf
+*.sh text eol=lf
+*.png binary
+*.jpg binary
+*.tif binary
+*.h5 binary
+*.pdf binary
+*.ico binary
+*.icns binary

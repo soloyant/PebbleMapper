@@ -1,0 +1,17 @@
+# Minimal conda environment for the throwaway stub detection backend.
+#
+# It exists only to prove the cross-environment subprocess mechanism (see
+# detectors/subprocess_runner.py and detectors/stub_backend.py). The stub's
+# run.py uses nothing but the Python standard library, so this environment is
+# the smallest one that could possibly host a separate backend: just Python.
+#
+# Create it with:
+#     conda env create -f detectors/stub/environment.yml
+# Then the "Stub (cross-env proof)" model appears in the Detection/Express
+# selectors. Remove it with:
+#     conda env remove -n pebble-stub
+name: pebble-stub
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11

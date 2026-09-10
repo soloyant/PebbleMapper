@@ -1,0 +1,34 @@
+
+======================================================================
+[Run 2026-09-20T17:27:38]
+  outcome             : complete
+  this run start      : 2026-09-20T16:43:52
+  this run elapsed (s): 2626.78
+  kstart this run     : 0
+
+[Inputs]
+  image path          : input_data/images/etretat_20200610_ortho_crop.tif
+  image dimensions    : 6058 x 6110 x 3
+  GeoTransform pixel  : 0.0034149300000001544 m/px
+  image_x_corner      : 497974.84318436
+  image_y_corner      : 6960112.08133867
+
+[Parameters]
+  metric_cropsize     : 1.0 m
+  cropsize            : 292 px
+  overlap             : 0.2
+  stride              : 233 px
+  tile grid           : 26 rows x 26 cols = 676 tiles
+  tiles to process    : 676 (after uniform-tile filter)
+  dedup_method        : iou
+  dedup_overlap       : 0.3
+  output_dir          : output_results/vectors
+  figures_dir         : output_results/figures
+  run_state_file      : output_results/vectors/example_03_Etretat__etretat_20200610_ortho_crop_ws1m.run.csv
+
+[Outputs]
+  output CSV          : output_results/vectors/example_03_Etretat__etretat_20200610_ortho_crop_ws1m.csv
+  records in CSV      : 12292
+  saveplot            : False
+
+Cumulative elapsed (s): 2626.78
