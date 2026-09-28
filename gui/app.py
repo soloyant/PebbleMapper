@@ -17508,10 +17508,14 @@ def build_digitize_tab():
                     # The availability check Detect and Express make: without
                     # it the run reached HDF5 and printed a traceback at the
                     # user.
+                    # Only for the model that will run: a mask detector set
+                    # in state (dig_mask_detector) replaces Mask R-CNN, whose
+                    # weights are then not needed.
                     try:
                         from detectors import get_backend as _gb_check
-                        _be = backend if backend is not None \
-                            else _gb_check(model_name)
+                        _be = backend if backend is not None else (
+                            None if state.dig_mask_detector is not None
+                            else _gb_check(model_name))
                         if _be is not None and not _be.is_available():
                             console.push("[detect] " + _model_unavailable_text(_be))
                             return

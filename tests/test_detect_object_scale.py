@@ -374,7 +374,10 @@ def test_run_all_queued_does_not_die_on_the_drawer_button(clean, project, monkey
     start, not raise NameError before the first job."""
     from gui import app as A
     import nicegui
+    from detectors import maskrcnn as _mr
     monkeypatch.setattr(nicegui.ui, "run_javascript", lambda *a, **k: None)
+    # The weights are not part of the repository (a CI runner has none).
+    monkeypatch.setattr(_mr.MaskRCNNBackend, "is_available", lambda self: True)
     state, _ = clean
     state.current_project = "P"
     state.det_mode = "quadrat"
@@ -490,3 +493,39 @@ def test_two_models_on_one_photograph_write_two_files(clean, project, monkeypatc
     assert len(written) == 2, written
     assert any("_model=fakea_" in n for n in written)
     assert any("_model=fakeb_" in n for n in written)
+
+
+def test_run_all_queued_refuses_without_the_weights_and_says_how_to_get_them(
+        clean, project, monkeypatch):
+    """Without Mask R-CNN's weights (not public yet), Run all queued stops
+    before the worker and shows the notice of detectors.download_weights."""
+    from gui import app as A
+    import nicegui
+    import threading
+    from detectors import maskrcnn as _mr
+    from detectors.download_weights import weights_missing_message
+    monkeypatch.setattr(nicegui.ui, "run_javascript", lambda *a, **k: None)
+    monkeypatch.setattr(_mr.MaskRCNNBackend, "is_available", lambda self: False)
+    notes = []
+    monkeypatch.setattr(nicegui.ui, "notify", lambda msg, **kw: notes.append(msg))
+    state, _ = clean
+    state.current_project = "P"
+    state.det_mode = "quadrat"
+    state.det_dir = ""
+    A._RELOAD_MODEL_BTN["btn"] = None
+    col = _build(clean)
+    inp = next(e for e in _walk(col) if e.__class__.__name__ == "Input"
+               and e._props.get("label") == "Image directory")
+    inp.value = str(project["images"])
+    _press(col, "Add to queue")
+    started = {}
+
+    class _NoThread:
+        def __init__(self, target=None, daemon=None, **kw):
+            pass
+        def start(self):
+            started["started"] = True
+    monkeypatch.setattr(threading, "Thread", _NoThread)
+    _press(col, "Run all queued")
+    assert not started, "the run started without the weights"
+    assert weights_missing_message() in notes
