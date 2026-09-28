@@ -998,11 +998,16 @@ def plot_transect_profile(
     out_png: str | Path,
     *,
     field_name: str = "value",
+    parameter: Optional[str] = None,
 ) -> Path:
     """Write a two-panel plot: raster value vs distance, DEM vs distance.
 
-    The DEM panel is omitted when no elevation samples are present.
+    ``parameter`` is the raster's per-cell statistic (``D50``, ``sorting``…,
+    read from its file name by the caller): with it the values are converted
+    to display units and labelled as that statistic (``Clast length — median
+    [mm]``). The DEM panel is omitted when no elevation samples are present.
     """
+    from functions.units import resolve_display
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -1020,13 +1025,16 @@ def plot_transect_profile(
         axes = [axes]
 
     ax0 = axes[0]
-    ax0.plot(sample.distance_m, sample.raster_value, "-",
-             color="#225599", linewidth=1.4)
-    # Stored values are plotted without unit conversion, so no display unit is appended.
-    _disp = field_display(field_name)[0] or str(field_name).replace("_", " ")
-    ax0.set_ylabel(_disp)
+    # Display units and label from the field and the statistic together, as
+    # the Map tab labels the same raster.
+    _disp, _unit, _factor, _cmap, _div = resolve_display(field_name, parameter)
+    if not _disp:
+        _disp = str(field_name).replace("_", " ") or "value"
+    values = np.asarray(sample.raster_value, dtype=float) * float(_factor or 1.0)
+    ax0.plot(sample.distance_m, values, "-", color="#225599", linewidth=1.4)
+    ax0.set_ylabel(f"{_disp} [{_unit}]" if _unit else _disp)
     ax0.grid(True, alpha=0.3)
-    ax0.set_title(f"Transect {sample.transect_id} — {_disp} profile")
+    ax0.set_title(f"Transect {sample.transect_id}: {_disp}")
 
     if has_dem:
         ax1 = axes[1]

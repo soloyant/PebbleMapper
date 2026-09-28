@@ -912,3 +912,27 @@ def test_a_zonal_map_labels_sizes_like_the_map_tab():
                                               parameter=parameter)
     assert (unit, factor) == ("mm", 1000.0)
     assert mx._raster_label(stem, parameter, unit) == "Clast length [mm]"
+
+
+def test_a_transect_profile_is_labelled_by_its_statistic_in_display_units(tmp_path):
+    """The profile of a D50 raster was drawn in metres and labelled "Clast
+    length" with no unit."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from unittest import mock
+    from functions.zonal_stats import TransectSample, plot_transect_profile
+    s = TransectSample("t1", np.array([0.0, 1.0, 2.0]), np.array([0.040, 0.045, 0.050]))
+    captured = {}
+    import matplotlib.axes
+    real_plot = matplotlib.axes.Axes.plot
+
+    def spy(self, *a, **k):
+        captured.setdefault("y", a[1])
+        return real_plot(self, *a, **k)
+    with mock.patch.object(matplotlib.axes.Axes, "plot", spy), \
+         mock.patch("matplotlib.figure.Figure.savefig"):
+        with mock.patch("matplotlib.pyplot.close") as close:
+            plot_transect_profile(s, tmp_path / "p.png", field_name="Clast_length", parameter="D50")
+            fig = close.call_args[0][0]
+    assert np.allclose(captured["y"], [40.0, 45.0, 50.0])
+    assert fig.axes[0].get_ylabel() == "Clast length — median [mm]"

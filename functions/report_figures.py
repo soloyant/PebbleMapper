@@ -1413,10 +1413,19 @@ def zone_location_map(image_path, geojson_paths: Sequence, *, transform=None,
                     cx, cy = allpts.mean(axis=0)
                     lab = _feature_label(feat, fid)
                     drawn_labels.append(lab)
-                    ax.text(cx, cy, lab, ha="center", va="center",
-                            fontsize=FONT_PT, color="#111", zorder=7,
-                            bbox=dict(boxstyle="round,pad=0.2", fc="white",
-                                      ec=col, lw=0.8, alpha=0.85))
+                    box = dict(boxstyle="round,pad=0.2", fc="white",
+                               ec=col, lw=0.8, alpha=0.85)
+                    if any(kind == "poly" for kind, _a in parts):
+                        # Above the polygon, so a small zone (a quadrat)
+                        # stays visible under its label.
+                        ax.annotate(lab, (cx, allpts[:, 1].max()),
+                                    xytext=(0, 4), textcoords="offset points",
+                                    ha="center", va="bottom", fontsize=FONT_PT,
+                                    color="#111", zorder=7, bbox=box)
+                    else:
+                        ax.text(cx, cy, lab, ha="center", va="center",
+                                fontsize=FONT_PT, color="#111", zorder=7,
+                                bbox=box)
             if len(per_file) > 1:
                 handles.append(Line2D([], [], color=col, lw=1.6,
                                       label=p.stem))
@@ -1436,7 +1445,7 @@ def zone_location_map(image_path, geojson_paths: Sequence, *, transform=None,
             ax.set_xlabel("x (px)")
             ax.set_ylabel("y (px)")
         if handles:
-            ax.legend(handles=handles, loc="upper left", framealpha=0.85,
+            ax.legend(handles=handles, loc="best", framealpha=0.85,
                       edgecolor="none")
         if title:
             ax.set_title(title)

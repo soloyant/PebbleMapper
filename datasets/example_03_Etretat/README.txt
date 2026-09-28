@@ -17,11 +17,14 @@ input_data/images/etretat_20200610_ortho_crop.tif
 input_data/dem/etretat_20200610_dem_crop.tif
     DEM of the same window, 1527 x 1515 px at 13.7 mm/px (Rasterize, Zonal).
 input_data/geometries/zones_quadrats.geojson
-    Four 2.5 m squares centred on the quadrats (Zonal, Validate). Named after the
-    RTK point and the photograph: Q25_IMG_0955, Q26_IMG_0957, Q41_IMG_0973,
-    Q42_IMG_0974.
+    The four quadrat footprints (0.84 m frames) as placed in the ortho by
+    Georeference, seeded by the RTK points (3 to 4 mm residual): position and
+    orientation as laid on the beach (Zonal, Validate). Named after the RTK point
+    and the photograph: Q25_IMG_0955, Q26_IMG_0957, Q41_IMG_0973, Q42_IMG_0974.
 input_data/geometries/transect_1.geojson
-    One line across the crop (Zonal's transect sampling).
+    A 23.1 m cross-shore line through the centre of the crop, landward end
+    first, along the DEM's steepest descent (bearing 328.5 degrees, towards the
+    sea), perpendicular to the sediment bands (Zonal's transect sampling).
 validation/raw/IMG_0955.JPG, IMG_0957.JPG
     Two of the quadrat photographs as shot (4032 x 3024, EXIF with GPS kept;
     re-encoded at JPEG quality 88). Orthorectify: the *_corners.txt files hold

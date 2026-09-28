@@ -80,8 +80,10 @@ def _w_zonal_transects(args: dict, log) -> tuple[dict, list]:
         for t in results:
             png = out_dir / f"{Path(args['out_csv']).stem}__{t.transect_id}.png"
             try:
-                plot_transect_profile(t, png,
-                                      field_name=args.get("field_name") or "")
+                from functions.map_export import _parameter_from_stem
+                plot_transect_profile(
+                    t, png, field_name=args.get("field_name") or "",
+                    parameter=_parameter_from_stem(Path(args["raster"]).stem))
                 log(f"plot -> {png}")
                 pngs.append(str(png))
             except Exception as ex:  # per-plot best effort

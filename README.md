@@ -61,9 +61,13 @@ north arrow and basemap.
 zones, survey units) and along transects, from GeoJSON drawn in the app or imported.
 
 <p align="center">
-  <img src="docs/figures/zones-map.jpg" alt="Quadrat zones and a transect over the ortho-image" width="60%"/>
+  <img src="docs/figures/zones-map.jpg" alt="Quadrat footprints and a cross-shore transect over the ortho-image" width="48%"/>
+  <img src="docs/figures/transect-profile.png" alt="D50 and elevation along the cross-shore transect" width="48%"/>
 </p>
-<p align="center"><em>Four quadrat zones and a cross-shore transect on the Étretat example.</em></p>
+<p align="center"><em>Left: the four quadrats of the Étretat example, placed in the ortho-image
+from their photographs, and a cross-shore transect. Right: D50 and elevation along the
+transect, from the landward end: the median clast length rises from about 43 to 50 mm
+across the break in slope.</em></p>
 
 **Scale from an object.** A photograph taken without a quadrat or a known ground sample
 distance is scaled from an object in the picture. With the object's size unknown, clasts are
