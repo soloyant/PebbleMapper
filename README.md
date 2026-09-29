@@ -178,8 +178,8 @@ misses are the smallest: none of the five under 20 mm is found.
 
 On a densely packed beach surface the model finds a smaller share of the clasts. On
 IMG_0955 of `example_03_Etretat` (0.57 mm/px, 1,362 surface clasts outlined by hand) it
-finds 320 (24 %), mostly the larger and paler ones, with almost no false detections
-(99 %). The clasts it finds are measured accurately (length RMSE 1.6 mm), but the
+finds 320 (recall 0.23), mostly the larger and paler ones, with almost no false
+detections (precision 0.99). The clasts it finds are measured accurately (length RMSE 1.6 mm), but the
 distribution is biased towards coarse sizes: D50 20.2 mm against 17.7 mm by hand, D84
 34.2 mm against 26.5 mm. Clasts shorter than 8 pixels are below the detection limit.
 Where a complete count matters, compare with a plug-in model (below) or check against
@@ -187,33 +187,45 @@ clasts outlined by hand in the Digitize tab.
 
 ## Other detection models
 
-Three plug-ins let PebbleMapper run other published models. Each is a separate repository
-with its own environment and licence; they are not public yet, as their authors are being
-consulted. PebbleMapper measures the outlines every model returns in the same way, so the
-results are comparable.
+Four plug-ins let PebbleMapper run other published models. Each is a separate repository
+with its own environment, licence and installation guide:
+[OrthoSAM](https://github.com/soloyant/pebblemapper-backend-orthosam) and
+[PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts) are public;
+the Segment Every Grain and ImageGrains plug-ins are available on request while their
+authors are consulted. PebbleMapper measures the outlines every model returns in the same
+way, so the results are comparable.
 
 The same photograph (IMG_0955, 1,362 clasts outlined by hand) through each model:
 
-| Model | Detections | Hand-outlined clasts found | Detections that match one | Length RMSE | D50 | D84 | Time per photograph |
-|---|---|---|---|---|---|---|---|
-| Hand outlines | 1,362 | | | | 17.7 mm | 26.5 mm | |
-| Mask R-CNN (built in) | 324 | 320 (24 %) | 99 % | 1.6 mm | 20.2 mm | 34.2 mm | 41 s (GPU) |
-| [Segment Every Grain](https://github.com/zsylvester/segmenteverygrain) | 1,822 | 1,350 (99 %) | 74 % | 1.0 mm | 17.7 mm | 26.3 mm | 259 s (GPU) |
-| [ImageGrains](https://github.com/dmair1989/imagegrains) | 2,034 | 1,316 (97 %) | 65 % | 1.7 mm | 17.2 mm | 26.0 mm | 51 s (CPU) |
-| [PebbleCountsAuto](https://github.com/UP-RS-ESP/PebbleCounts) | 605 | 491 (36 %) | 81 % | 4.1 mm | 21.0 mm | 35.3 mm | 17 s (CPU) |
+| Model | Detections | True positives | Recall | Precision | F1 | Length RMSE | D50 | D84 | Time per photograph |
+|---|---|---|---|---|---|---|---|---|---|
+| Hand outlines (reference) | 1,362 | | | | | | 17.7 mm | 26.5 mm | |
+| Mask R-CNN (built in) | 324 | 320 | 0.23 | 0.99 | 0.38 | 1.6 mm | 20.2 mm | 34.2 mm | 41 s (GPU) |
+| [Segment Every Grain](https://github.com/zsylvester/segmenteverygrain) | 1,822 | 1,350 | 0.99 | 0.74 | 0.85 | 1.0 mm | 17.7 mm | 26.3 mm | 259 s (GPU) |
+| [ImageGrains](https://github.com/dmair1989/imagegrains) | 2,034 | 1,316 | 0.97 | 0.65 | 0.78 | 1.7 mm | 17.2 mm | 26.0 mm | 51 s (CPU) |
+| [PebbleCountsAuto](https://github.com/UP-RS-ESP/PebbleCounts) | 605 | 491 | 0.36 | 0.81 | 0.50 | 4.1 mm | 21.0 mm | 35.3 mm | 17 s (CPU) |
+| [OrthoSAM](https://github.com/UP-RS-ESP/OrthoSAM) | 1,659 | 1,079 | 0.79 | 0.65 | 0.71 | 1.4 mm | 17.6 mm | 26.8 mm | 430 s (GPU) |
 
-Detections are paired with hand outlines by position and size, as the Validate tab does.
-The hand outlines started from Segment Every Grain's detections, corrected and completed by
-hand, which favours that model here. Most unmatched outlines of Segment Every Grain and
-ImageGrains are clasts lying partly buried between the surface clasts, which the hand
-outlines leave out; their share of matching detections is therefore a lower bound.
-Times are for one photograph once the model is loaded; loading adds 20 to 70 s once per run. They were measured on a 2018 laptop (Intel Core i7-8850H, NVIDIA Quadro P600 with 4 GB). ImageGrains' environment installs the processor build of PyTorch, and PebbleCountsAuto has no GPU code.
+Detections are paired with the 1,362 hand-outlined clasts by position and size, as
+PebbleMapper's Validate tab does. A true positive is a detection paired with a
+hand-outlined clast; recall is true positives over the 1,362 hand-outlined clasts,
+precision is true positives over the detections, and F1 is their harmonic mean. False
+negatives (1,362 minus true positives) and false positives (detections minus true
+positives) follow from the table. Length RMSE is computed on the true positives.
+
+The hand outlines leave out many of the smallest grains between the larger clasts, so a
+detection with no hand-outlined partner is not necessarily wrong, and precision is a
+lower bound. The hand outlines started from Segment Every Grain's detections, which
+favours that model here. Times are for one photograph once the model is loaded (loading
+adds 20 to 70 s once per run), on a 2018 laptop (Intel Core i7-8850H, NVIDIA Quadro P600
+with 4 GB). ImageGrains' environment installs the processor build of PyTorch, and
+PebbleCountsAuto has no GPU code.
 
 <p align="center">
-  <img src="docs/figures/backends-overlays.jpg" alt="The same quadrat photograph through the hand outlines and the four models" width="100%"/>
+  <img src="docs/figures/backends-overlays.jpg" alt="The same quadrat photograph through the hand outlines and the five models" width="100%"/>
 </p>
 <p align="center"><em>A 40 cm crop of the same photograph: the hand outlines and each model's
-detections, coloured by the same size classes.</em></p>
+detections, on the same size classes in every panel.</em></p>
 
 ## Documentation
 
