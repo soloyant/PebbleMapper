@@ -19809,17 +19809,18 @@ def build_validate_tab():
             with ui.row().classes("gap-4"):
                 _stat_card("Truth clasts", f"{metrics['n_truth']}", "")
                 _stat_card("Detected clasts", f"{metrics['n_detect']}", "")
-                _stat_card("Matched pairs", f"{metrics['n_matched']}", "")
+                _stat_card("True positives", f"{metrics['n_matched']}",
+                           "detections paired with a truth clast")
                 _stat_card("Recall", f"{metrics['recall']:.3f}",
-                           f"{metrics['n_matched']} / {metrics['n_truth']} truth clasts found")
+                           f"{metrics['n_matched']} true positives / {metrics['n_truth']} truth clasts")
                 _stat_card("Precision", f"{metrics['precision']:.3f}",
-                           f"{metrics['n_matched']} / {metrics['n_detect']} detections matched a truth clast")
+                           f"{metrics['n_matched']} true positives / {metrics['n_detect']} detections")
                 _stat_card("F1", f"{metrics['f1']:.3f}",
                            "harmonic mean of recall and precision")
             ui.markdown(
                 f"_Tolerance used: {pair_res['used_tolerance']:.3f} m_"
             ).classes("text-sm text-grey-7")
-            ui.label('This detector favours precision over recall, so low recall mostly means undetected borderline clasts; for grain-size mapping the distribution metrics below matter more than recall or F1.').classes("text-sm text-grey-7")
+            ui.label('Mask R-CNN, the built-in model, favours precision over recall, so with it a low recall mostly means undetected borderline clasts; for grain-size mapping the distribution metrics below matter more than recall or F1.').classes("text-sm text-grey-7")
 
         # ---- Section 2: distribution comparison ----
         with dist_container:

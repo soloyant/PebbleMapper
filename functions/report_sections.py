@@ -1402,8 +1402,9 @@ def validation(story, ss, inv, stats, facts, options, log, section, *, dpi, qual
 
     _para(story, ss,
           "Each comparison pairs hand-digitised clasts with detections by mutual "
-          "nearest neighbour, then compares the two size distributions. The "
-          "detector is tuned for precision over recall, so the informative "
+          "nearest neighbour, then compares the two size distributions. A "
+          "paired detection is a true positive. Mask R-CNN, the built-in "
+          "model, is tuned for precision over recall, so with it the informative "
           "questions are whether the detected sample recovers the right "
           "distribution (ΔD50, ΔD84, the K-S statistic) and how large the "
           "per-clast error is (RMSE, bias), more than how many clasts it found.")
@@ -1437,12 +1438,12 @@ def validation(story, ss, inv, stats, facts, options, log, section, *, dpi, qual
 
         rows = [["Metric", "All clasts", f"D ≥ D<sub>min</sub>", "Reading"]]
         rows = [[Paragraph(c, ss["Body"]) for c in rows[0]]]
-        rows.append(["Paired clasts (n)", fmt_int(m.get("n_matched")),
+        rows.append(["True positives (n)", fmt_int(m.get("n_matched")),
                      fmt_int((tr or {}).get("n_matched")) if tr and tr.get("n_matched") else "—",
                      f"of {fmt_int(m.get('n_truth'))} truth and {fmt_int(m.get('n_detect'))} detected"])
         rows.append(["Recall / precision / F1",
                      f"{fmt_num(m.get('recall'), 2)} / {fmt_num(m.get('precision'), 2)} / "
-                     f"{fmt_num(m.get('f1'), 2)}", "—", "fraction found / fraction correct"])
+                     f"{fmt_num(m.get('f1'), 2)}", "—", "TP / truth, TP / detected, harmonic mean"])
         rows.append(["ΔD50", _pct(m.get("D50_relerr")),
                      _pct(((tr.get("detect_d50") - tr.get("truth_d50")) / tr.get("truth_d50"))
                           if tr and tr.get("truth_d50") else None),
@@ -1477,7 +1478,7 @@ def validation(story, ss, inv, stats, facts, options, log, section, *, dpi, qual
                     fig = RF.validation_diagnostics(paired, field=field, unit=unit, scale=factor)
                     _figure_block(
                         story, ss, fig,
-                        f"Paired clasts ({fmt_int(len(paired))}): detection against "
+                        f"True positives ({fmt_int(len(paired))}): detection against "
                         f"truth with the 1:1 line; Bland–Altman difference against mean "
                         f"with bias and 95 % limits of agreement; cumulative "
                         f"distributions with D50 and D84.",

@@ -652,11 +652,13 @@ are truncated at D_min. Change k for another camera set-up.
 
 **Batch truth from folder…** compares every CSV of a folder with one Detection CSV.
 
-**Results.** Per comparison: detection performance (recall, precision, F1); distribution
-comparison (D50/D84 ratios, Kolmogorov–Smirnov, Folk–Ward sorting, RMSE, Bland–Altman);
-diagnostic plots; detection-limit diagnostics; the spatial pattern of matches and misses; an
-image overlay. The detector favours precision over recall, so a low recall mostly reflects
-missed borderline clasts. For grain-size mapping the distribution metrics matter more than
+**Results.** Per comparison: detection performance (true positives, that is detections
+paired with a truth clast; recall, true positives over truth clasts; precision, true
+positives over detections; F1); distribution comparison (D50/D84 ratios,
+Kolmogorov–Smirnov, Folk–Ward sorting, RMSE, Bland–Altman); diagnostic plots;
+detection-limit diagnostics; the spatial pattern of matches and misses; an image overlay.
+Mask R-CNN, the built-in model, favours precision over recall, so with it a low recall
+mostly reflects missed borderline clasts. For grain-size mapping the distribution metrics matter more than
 recall or F1. Results are saved as `.validation.json` in `validation/results/` and read by
 the report.
 
