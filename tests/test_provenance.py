@@ -77,7 +77,7 @@ def test_measure_records_says_which_record_each_row_is_and_scales_once():
 def test_the_provenance_sidecar_round_trips_with_edits(tmp_path):
     recs = [_disc(100, 100, 20), _disc(200, 100, 20, origin="Mask R-CNN (Soloy et al., 2020)"),
             _disc(300, 100, 20, origin="Mask R-CNN (Soloy et al., 2020)", edited=True),
-            _disc(300, 220, 20, origin="Segment Every Grain (Sylvester)")]
+            _disc(300, 220, 20, origin="Segmenteverygrain (Sylvester)")]
     clasts = PV.clast_origins(recs, [0, 1, 2, 3])
     assert clasts[1] == {"origin": "hand", "edited": False}
     assert clasts[3] == {"origin": "Mask R-CNN (Soloy et al., 2020)", "edited": True}
@@ -89,14 +89,14 @@ def test_the_provenance_sidecar_round_trips_with_edits(tmp_path):
     doc = json.loads(out.read_text(encoding="utf-8"))
     assert doc["format"] == "pebblemapper-provenance" and doc["edited"] == 1
     assert doc["counts"] == {"hand": 1, "Mask R-CNN (Soloy et al., 2020)": 2,
-                             "Segment Every Grain (Sylvester)": 1}
+                             "Segmenteverygrain (Sylvester)": 1}
     assert doc["models"][0]["detect_scale"] == 0.5
     assert doc["models"][0]["min_confidence"] == 0.7
     back = PV.read_provenance(csv)
     assert back["clasts"] == clasts
     assert PV.summary_line(back["clasts"], back["models"]) == (
         "Detections: Mask R-CNN (Soloy et al., 2020), 2 kept, 1 edited; "
-        "Segment Every Grain (Sylvester), 1 kept; 1 drawn by hand")
+        "Segmenteverygrain (Sylvester), 1 kept; 1 drawn by hand")
     assert PV.summary_line({1: {"origin": "hand"}}) == "1 drawn by hand"
     assert PV.read_provenance(tmp_path / "nothing.csv") is None
     # A hand-drawn clast is never "edited".

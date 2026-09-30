@@ -104,7 +104,7 @@ _MIN_SEGMENT_PX = 1.0
 # clasts in 97 s, 1/2 -> 147 in 14 s, 1/3 -> 129 in 8 s, 1/4 -> 100 in 4 s,
 # D50 stable within 2 px throughout. A plug-in model sets its smallest grain
 # in pixels, so a half-size copy drops every clast below four times that
-# area: Segment Every Grain on a 1482 px quadrat, 1 -> 1822 clasts, D50
+# area: Segmenteverygrain on a 1482 px quadrat, 1 -> 1822 clasts, D50
 # 17.7 mm; 1/2 -> 388, D50 29.4 mm. Auto therefore means 1/2 for Mask R-CNN
 # and 1 for any other model.
 DETECT_SCALES: Dict[str, float] = {"1": 1.0, "1/2": 0.5, "1/3": 1.0 / 3.0,

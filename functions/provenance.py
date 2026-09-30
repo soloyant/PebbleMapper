@@ -128,7 +128,7 @@ def model_names(clasts: Mapping, models: Sequence[Mapping] = ()) -> List[str]:
 
 
 def summary_line(clasts: Mapping, models: Sequence[Mapping] = ()) -> str:
-    """``"Detections: Segment Every Grain (Sylvester), 312 kept, 4 edited;
+    """``"Detections: Segmenteverygrain (Sylvester), 312 kept, 4 edited;
     12 drawn by hand"``; ``"12 drawn by hand"`` with no model; ``"No
     clasts"`` for an empty table."""
     counts = origin_counts(clasts)

@@ -192,7 +192,7 @@ provides ImageGrains 2.0 and 1.2). Each is a separate repository
 with its own environment, licence and installation guide:
 [OrthoSAM](https://github.com/soloyant/pebblemapper-backend-orthosam) and
 [PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts) are public;
-the Segment Every Grain and ImageGrains plug-ins are available on request while their
+the Segmenteverygrain and ImageGrains plug-ins are available on request while their
 authors are consulted. PebbleMapper measures the outlines every model returns in the same
 way, so the results are comparable.
 
@@ -202,7 +202,7 @@ The same photograph (IMG_0955, 1,362 clasts outlined by hand) through each model
 |---|---|---|---|---|---|---|---|---|---|
 | Hand outlines (reference) | 1,362 | | | | | | 17.7 mm | 26.5 mm | |
 | Mask R-CNN (built in) | 324 | 320 | 0.23 | 0.99 | 0.38 | 1.6 mm | 20.2 mm | 34.2 mm | 41 s (GPU) |
-| [Segment Every Grain](https://github.com/zsylvester/segmenteverygrain) | 1,822 | 1,350 | 0.99 | 0.74 | 0.85 | 1.0 mm | 17.7 mm | 26.3 mm | 259 s (GPU) |
+| [Segmenteverygrain](https://github.com/zsylvester/segmenteverygrain) | 1,822 | 1,350 | 0.99 | 0.74 | 0.85 | 1.0 mm | 17.7 mm | 26.3 mm | 259 s (GPU) |
 | [ImageGrains](https://github.com/dmair1989/imagegrains) 2.0 | 2,928 | 1,346 | 0.99 | 0.46 | 0.63 | 1.4 mm | 14.5 mm | 22.1 mm | 154 s (GPU) |
 | [ImageGrains](https://github.com/dmair1989/imagegrains) 1.2 | 2,034 | 1,316 | 0.97 | 0.65 | 0.78 | 1.7 mm | 17.2 mm | 26.0 mm | 51 s (CPU) |
 | [PebbleCountsAuto](https://github.com/UP-RS-ESP/PebbleCounts) | 605 | 491 | 0.36 | 0.81 | 0.50 | 4.1 mm | 21.0 mm | 35.3 mm | 17 s (CPU) |
@@ -218,7 +218,7 @@ positives) follow from the table. Length RMSE is computed on the true positives.
 The hand outlines leave out many of the smallest grains between the larger clasts, so a
 detection with no hand-outlined partner is not necessarily wrong, and precision is a
 lower bound. ImageGrains 2.0 outlines most of those small grains, which is why its D50 is
-lower. The hand outlines started from Segment Every Grain's detections, which favours
+lower. The hand outlines started from Segmenteverygrain's detections, which favours
 that model here. Times are for one photograph once the model is loaded (loading adds 7 to
 70 s once per run), on a 2018 laptop (Intel Core i7-8850H, NVIDIA Quadro P600 with 4 GB).
 ImageGrains 1.2 and PebbleCountsAuto run on the CPU.

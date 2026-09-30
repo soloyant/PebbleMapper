@@ -571,7 +571,7 @@ can supply editable proposals. A photograph with no GSD can be scaled from an ob
 **Label sets.** Each photograph has a truth set (`<stem>_truth.csv`, what Validate uses) and
 one set per detection model (`<stem>_labels=<model>.csv`, or the Detect tab's output). The
 **Image** list has one entry per photograph and set, for example *IMG_0955.jpg · truth* and
-*IMG_0955.jpg · Segment Every Grain*. **Copy to truth** adds a model set's clasts to the
+*IMG_0955.jpg · Segmenteverygrain*. **Copy to truth** adds a model set's clasts to the
 truth or replaces the truth with them.
 
 | Control | Meaning |
