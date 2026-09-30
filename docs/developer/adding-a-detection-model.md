@@ -364,7 +364,7 @@ The stub (`BackendInfo(dev_only=True)`) writes three synthetic ellipses per imag
 
 ## 8. Existing plug-ins
 
-Four models are available as plug-ins, each in its own repository with its licence,
+Four plug-ins provide five models, each plug-in in its own repository with its licence,
 environment file, download scripts and README. The OrthoSAM and PebbleCountsAuto
 repositories are public; the Segment Every Grain and ImageGrains ones are available on
 request while their authors are consulted.
@@ -372,10 +372,10 @@ request while their authors are consulted.
 | Repository | Model | Method | Licence | Runs on |
 |---|---|---|---|---|
 | `soloyant/pebblemapper-backend-segmenteverygrain` | [Segment Every Grain](https://github.com/zsylvester/segmenteverygrain) (Sylvester et al., 2025) | U-Net prompts + SAM 2.1 masks | adapter MIT; code and U-Net weights Apache-2.0 (© Zoltán Sylvester); SAM 2.1 code and weights Apache-2.0 (© Meta) | GPU (about 1.5 GB) |
-| `soloyant/pebblemapper-backend-imagegrains` | [ImageGrains](https://github.com/dmair1989/imagegrains) 1.x (Mair et al., 2023) | Cellpose-2 CNN | adapter MIT; code BSD-3 (© David Mair; Cellpose © HHMI); models CC BY 4.0 on Zenodo | CPU |
+| `soloyant/pebblemapper-backend-imagegrains` | [ImageGrains](https://github.com/dmair1989/imagegrains) 2.0 (Mair et al., 2026) and 1.2 (Mair et al., 2023), two backends (`make_backend`, `make_backend_v1`) | Cellpose-SAM transformer (2.0); Cellpose-2 CNN (1.2) | adapter MIT; code BSD-3 (© David Mair; Cellpose © HHMI); models CC BY 4.0 on Zenodo | GPU, 3 GB or more (2.0); CPU (1.2) |
 | [`soloyant/pebblemapper-backend-pebblecounts`](https://github.com/soloyant/pebblemapper-backend-pebblecounts) | [PebbleCountsAuto](https://github.com/UP-RS-ESP/PebbleCounts) (Purinton & Bookhagen, 2019) | edge detection + ellipse filtering, no neural network | GPL-3.0-or-later (adapter too); downloaded by script, not bundled | CPU |
 | [`soloyant/pebblemapper-backend-orthosam`](https://github.com/soloyant/pebblemapper-backend-orthosam) | [OrthoSAM](https://github.com/UP-RS-ESP/OrthoSAM) (Chan, Rheinwalt & Bookhagen, 2026) | Segment Anything (SAM v1) prompted on a point grid over tiles, with coarser passes | adapter MIT; code Apache-2.0 (© the OrthoSAM authors); SAM code and weights Apache-2.0 (© Meta) | GPU (4 GB with ViT-B) |
 
 Each adapter calls its model's published API; its install script downloads the code from PyPI
 or GitHub and the weights from where the authors publish them. The [README](../../README.md)
-compares the five models on one quadrat photograph of `example_03_Etretat`.
+compares the six models on one quadrat photograph of `example_03_Etretat`.
