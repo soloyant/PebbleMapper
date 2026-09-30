@@ -191,8 +191,8 @@ with its own environment, licence and installation guide:
 [Segmenteverygrain](https://github.com/soloyant/pebblemapper-backend-segmenteverygrain),
 [ImageGrains](https://github.com/soloyant/pebblemapper-backend-imagegrains),
 [OrthoSAM](https://github.com/soloyant/pebblemapper-backend-orthosam) and
-[PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts). PebbleMapper measures the outlines every model returns in the same
-way, so the results are comparable.
+[PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts). PebbleMapper measures the
+outlines every model returns with the same measurement step.
 
 The same photograph (IMG_0955, 1,362 fully visible pebbles outlined by hand) through each model:
 
