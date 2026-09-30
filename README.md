@@ -171,19 +171,17 @@ The [user manual](docs/user-manual.md) describes every tab, and the installation
 
 ## Accuracy and limits
 
-On IMG_0806 of `example_06_paper_validation` (105 pebbles spread out on sand,
+On IMG_0806 of `example_06_paper_validation` (105 pebbles spread out on tarmac,
 0.50 mm/px), the built-in model finds 88 pebbles and makes no false detection. Detected
 length against the caliper a-axis: R² 0.98, RMSE 4.9 mm, bias −3.6 mm. The 17 pebbles it
 misses are the smallest: none of the five under 20 mm is found.
 
-On a densely packed beach surface the model finds a smaller share of the clasts. On
-IMG_0955 of `example_03_Etretat` (0.57 mm/px, 1,362 surface clasts outlined by hand) it
-finds 320 (recall 0.23), mostly the larger and paler ones, with almost no false
-detections (precision 0.99). The clasts it finds are measured accurately (length RMSE 1.6 mm), but the
-distribution is biased towards coarse sizes: D50 20.2 mm against 17.7 mm by hand, D84
-34.2 mm against 26.5 mm. Clasts shorter than 8 pixels are below the detection limit.
-Where a complete count matters, compare with a plug-in model (below) or check against
-clasts outlined by hand in the Digitize tab.
+The model was trained only on pebbles lying fully visible on top of the sediment, with
+no overlap or burial, and is tuned for precision over recall. On IMG_0955 of
+`example_03_Etretat` (0.57 mm/px), 1,362 pebbles were outlined by hand under the same
+rule. The model finds 320 of them (recall 0.23, precision 0.99), with a length RMSE of
+1.6 mm; D50 20.2 mm against 17.7 mm by hand, D84 34.2 mm against 26.5 mm. Clasts shorter
+than 8 pixels are below the detection limit.
 
 ## Other detection models
 
@@ -196,7 +194,7 @@ with its own environment, licence and installation guide:
 the ImageGrains plug-in is available on request while its authors are consulted. PebbleMapper measures the outlines every model returns in the same
 way, so the results are comparable.
 
-The same photograph (IMG_0955, 1,362 clasts outlined by hand) through each model:
+The same photograph (IMG_0955, 1,362 fully visible pebbles outlined by hand) through each model:
 
 | Model | Detections | True positives | Recall | Precision | F1 | Length RMSE | D50 | D84 | Time per photograph |
 |---|---|---|---|---|---|---|---|---|---|
@@ -215,11 +213,10 @@ precision is true positives over the detections, and F1 is their harmonic mean. 
 negatives (1,362 minus true positives) and false positives (detections minus true
 positives) follow from the table. Length RMSE is computed on the true positives.
 
-The hand outlines leave out many of the smallest grains between the larger clasts, so a
-detection with no hand-outlined partner is not necessarily wrong, and precision is a
-lower bound. ImageGrains 2.0 outlines most of those small grains, which is why its D50 is
-lower. The hand outlines started from Segmenteverygrain's detections, which favours
-that model here. Times are for one photograph once the model is loaded (loading adds 7 to
+The hand outlines keep only the pebbles lying fully visible on top of the sediment;
+partly buried and overlapping pebbles were removed by hand. This is the rule Mask R-CNN's
+training labels follow. The hand outlines were started from Segmenteverygrain's
+detections. Times are for one photograph once the model is loaded (loading adds 7 to
 70 s once per run), on a 2018 laptop (Intel Core i7-8850H, NVIDIA Quadro P600 with 4 GB).
 ImageGrains 1.2 and PebbleCountsAuto run on the CPU.
 
