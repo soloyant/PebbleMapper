@@ -190,10 +190,10 @@ clasts outlined by hand in the Digitize tab.
 Four plug-ins let PebbleMapper run five other published models (the ImageGrains plug-in
 provides ImageGrains 2.0 and 1.2). Each is a separate repository
 with its own environment, licence and installation guide:
+[Segmenteverygrain](https://github.com/soloyant/pebblemapper-backend-segmenteverygrain),
 [OrthoSAM](https://github.com/soloyant/pebblemapper-backend-orthosam) and
 [PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts) are public;
-the Segmenteverygrain and ImageGrains plug-ins are available on request while their
-authors are consulted. PebbleMapper measures the outlines every model returns in the same
+the ImageGrains plug-in is available on request while its authors are consulted. PebbleMapper measures the outlines every model returns in the same
 way, so the results are comparable.
 
 The same photograph (IMG_0955, 1,362 clasts outlined by hand) through each model:
