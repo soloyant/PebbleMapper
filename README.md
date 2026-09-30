@@ -224,10 +224,10 @@ that model here. Times are for one photograph once the model is loaded (loading 
 ImageGrains 1.2 and PebbleCountsAuto run on the CPU.
 
 <p align="center">
-  <img src="docs/figures/backends-overlays.jpg" alt="The same quadrat photograph through the hand outlines and five of the models" width="100%"/>
+  <img src="docs/figures/backends-overlays.jpg" alt="The same quadrat photograph through the hand outlines and the six models" width="100%"/>
 </p>
 <p align="center"><em>A 40 cm crop of the same photograph: the hand outlines and each model's
-detections (ImageGrains 2.0 for ImageGrains), on the same size classes in every panel.</em></p>
+detections, both ImageGrains versions included, on the same size classes in every panel.</em></p>
 
 ## Documentation
 
