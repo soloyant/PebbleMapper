@@ -189,9 +189,9 @@ Four plug-ins let PebbleMapper run five other published models (the ImageGrains 
 provides ImageGrains 2.0 and 1.2). Each is a separate repository
 with its own environment, licence and installation guide:
 [Segmenteverygrain](https://github.com/soloyant/pebblemapper-backend-segmenteverygrain),
+[ImageGrains](https://github.com/soloyant/pebblemapper-backend-imagegrains),
 [OrthoSAM](https://github.com/soloyant/pebblemapper-backend-orthosam) and
-[PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts) are public;
-the ImageGrains plug-in is available on request while its authors are consulted. PebbleMapper measures the outlines every model returns in the same
+[PebbleCountsAuto](https://github.com/soloyant/pebblemapper-backend-pebblecounts). PebbleMapper measures the outlines every model returns in the same
 way, so the results are comparable.
 
 The same photograph (IMG_0955, 1,362 fully visible pebbles outlined by hand) through each model:
@@ -219,6 +219,21 @@ training labels follow. The hand outlines were started from Segmenteverygrain's
 detections. Times are for one photograph once the model is loaded (loading adds 7 to
 70 s once per run), on a 2018 laptop (Intel Core i7-8850H, NVIDIA Quadro P600 with 4 GB).
 ImageGrains 1.2 and PebbleCountsAuto run on the CPU.
+
+Settings used for every run in the table:
+
+| Model | Code and model file | Settings |
+|---|---|---|
+| Mask R-CNN | PebbleMapper 1.0.0, `mask_rcnn_clasts.h5` | minimum confidence 0.7; the whole photograph is resized to 1,024 × 1,024 px inside the network |
+| Segmenteverygrain | segmenteverygrain 0.5.0; U-Net `seg_model_smooth_labels.keras`; SAM 2.1 `sam2.1_hiera_large.pt` | patch 2,000 px, overlap 600 px; `min_area` 100 px, `min_grain_area` 50 px, `dbs_max_dist` 20, `dilation` 3; edge grains kept |
+| ImageGrains 2.0 | imagegrains 2.0.2, Cellpose 4.2.1; `IG2_full_set_cp_SAM` | Cellpose `min_size` 15 px, diameter estimated by Cellpose; long side capped at 2,048 px; none of ImageGrains' own filters (`min_diameter`, `pix_cutoff`, `edge_filter`) |
+| ImageGrains 1.2 | imagegrains 1.2.1, Cellpose 2.3.2; `IG2_full_set.200525`, a Cellpose 2 model trained on the IG2 dataset (not an IG1 model) | as for 2.0, with `channels` [0, 0] |
+| PebbleCountsAuto | PebbleCounts 4c80b2f (2023), `PebbleCountsAuto.py` | `otsu_threshold` 50, `cutoff` 20, `percent_overlap` 15, `misfit_threshold` 30, `min_size_threshold` 10, `first_nl_denoise` 5, `tophat_th` 90, `sobel_th` 90, `canny_sig` 2 |
+| OrthoSAM | OrthoSAM 18da0e5; SAM v1 `sam_vit_b_01ec64.pth` | tile 1,024 px, overlap 200 px, 30 × 30 prompts per tile, stability 0.85, dilation 5, smallest grain 30 px; a second pass at half resolution |
+
+For every model, the frame band is left out and every returned outline is measured by
+PebbleMapper's own step, so the sizes in the table are areal (by number of clasts), not grid
+samples.
 
 <p align="center">
   <img src="docs/figures/backends-overlays.jpg" alt="The same quadrat photograph through the hand outlines and the six models" width="100%"/>
