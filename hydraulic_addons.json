@@ -1,0 +1,50 @@
+[
+  {
+    "name": "settling_velocity",
+    "inputs": ["Equivalent_diameter"],
+    "expression": "(1.5803*9.81*Equivalent_diameter**2)/(18*0.00000119 + sqrt(0.75*1.5803*9.81*Equivalent_diameter**3))",
+    "units": "m/s",
+    "description": "Still-water settling velocity (Ferguson & Church 2004), per grain from its equivalent diameter. Baked-in constants: quartz in seawater (submerged specific gravity R=1.58), C1=18, C2=1.0 (natural angular grains), kinematic viscosity 1.19e-6 m2/s (seawater ~15C). Edit this addon for other lithologies / fluids.",
+    "factor": 1.0
+  },
+  {
+    "name": "dimensionless_grain_size",
+    "inputs": ["Equivalent_diameter"],
+    "expression": "pow(1.5803*9.81/(0.00000119*0.00000119), 1.0/3.0) * Equivalent_diameter",
+    "units": "dimensionless",
+    "description": "Dimensionless grain size D* = (R g / nu^2)^(1/3) * D. Controls the Shields threshold regime. Constants as for settling_velocity (quartz, seawater 15C).",
+    "factor": 1.0
+  },
+  {
+    "name": "critical_shear_stress",
+    "inputs": ["Equivalent_diameter"],
+    "expression": "0.045*1623*9.81*Equivalent_diameter",
+    "units": "N/m^2",
+    "description": "Critical (threshold-of-motion) bed shear stress to entrain the grain, tau_c = theta_c (rho_s - rho_f) g D, with a constant Shields parameter theta_c=0.045 (gravel) and (rho_s - rho_f)=1623 kg/m3 (quartz in seawater). Edit theta_c / densities for other settings.",
+    "factor": 1.0
+  },
+  {
+    "name": "critical_shear_velocity",
+    "inputs": ["Equivalent_diameter"],
+    "expression": "sqrt(0.045*1623*9.81*Equivalent_diameter/1027)",
+    "units": "m/s",
+    "description": "Critical bed shear velocity u*_c = sqrt(tau_c / rho_f) at the threshold of motion (same constants as critical_shear_stress; rho_f=1027 kg/m3 seawater).",
+    "factor": 1.0
+  },
+  {
+    "name": "corey_shape_factor",
+    "inputs": ["Ellipse_minor_axis", "Ellipse_major_axis"],
+    "expression": "sqrt(Ellipse_minor_axis/Ellipse_major_axis)",
+    "units": "dimensionless",
+    "description": "Corey shape factor c/sqrt(a*b) under the imagery-only assumption that the unmeasured thickness c equals the minor plan-view axis b, which reduces to sqrt(b/a). 1 = spherical, lower = more platy/elongate.",
+    "factor": 1.0
+  },
+  {
+    "name": "grain_roughness_ks",
+    "inputs": ["Equivalent_diameter"],
+    "expression": "2.5*Equivalent_diameter",
+    "units": "m",
+    "description": "Per-grain Nikuradse roughness proxy k_s = 2.5 D. Mapped per cell (e.g. as a median) it approximates the hydraulic bed roughness; for a bed-scale estimate use the D84-based form on the rasterised grain-size surface.",
+    "factor": 1.0
+  }
+]

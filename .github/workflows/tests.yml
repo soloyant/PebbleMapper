@@ -1,0 +1,117 @@
+# PebbleMapper: the test suite and a headless GUI boot check, on Windows.
+#
+# Windows only: it is the platform PebbleMapper supports, and some tests use
+# Windows paths (tests/test_exif_seed.py builds a \\?\ extended-length path).
+# The job builds the environment from environment.yml on a clean runner and
+# needs neither the trained weights nor datasets outside the repository.
+
+name: tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    name: pytest + GUI boot (windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # CI runners have no GPU: drop the two CUDA lines of environment.yml, as
+      # install.ps1 does on a machine without an NVIDIA card.
+      - name: Derive a CPU-only environment file
+        run: |
+          $src = Get-Content environment.yml
+          $out = $src | Where-Object { $_ -notmatch '^\s*-\s*(cudatoolkit|cudnn)\s*=' }
+          $dropped = $src.Count - $out.Count
+          if ($dropped -ne 2) {
+            Write-Error "Expected to drop exactly 2 CUDA lines, dropped $dropped. environment.yml changed shape - update this step rather than letting CI build a different environment silently."
+            exit 1
+          }
+          $out | Set-Content environment-ci.yml -Encoding utf8
+          Write-Host "--- environment-ci.yml ---"
+          Get-Content environment-ci.yml
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: maskrcnn
+          environment-file: environment-ci.yml
+          auto-activate-base: false
+          miniforge-version: latest
+
+      - name: Record what was actually installed
+        run: |
+          conda list
+          python -c "import sys, numpy, tensorflow as tf; print('python', sys.version); print('numpy', numpy.__version__); print('tf', tf.__version__)"
+          python -c "from osgeo import gdal; print('gdal', gdal.__version__)"
+
+      - name: Run the test suite
+        run: python -m pytest -q
+
+      # Start the app, request the index page, and fail on a traceback.
+      - name: Headless GUI boot check
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'gui-boot.log'
+          $p = Start-Process -FilePath (Get-Command python).Source `
+                             -ArgumentList '-u','-m','gui.app' `
+                             -RedirectStandardOutput $log `
+                             -RedirectStandardError "$log.err" `
+                             -PassThru -NoNewWindow
+
+          $ready = $false
+          foreach ($i in 1..60) {
+            Start-Sleep -Seconds 2
+            if (Test-Path $log) {
+              $text = Get-Content $log -Raw
+              if ($text -match 'NiceGUI ready') { $ready = $true; break }
+            }
+            if ($p.HasExited) { break }
+          }
+
+          # Ask for a page so the server builds it. A binding that only fails at
+          # render time will not show up until something requests the index.
+          $served = $false
+          if ($ready) {
+            try {
+              $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8081/' -TimeoutSec 20 -UseBasicParsing
+              $served = ($r.StatusCode -eq 200)
+            } catch { $served = $false }
+          }
+
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+
+          Write-Host '--- stdout ---'; if (Test-Path $log)      { Get-Content $log }
+          Write-Host '--- stderr ---'; if (Test-Path "$log.err") { Get-Content "$log.err" }
+
+          $all = ''
+          if (Test-Path $log)       { $all += (Get-Content $log -Raw) }
+          if (Test-Path "$log.err") { $all += (Get-Content "$log.err" -Raw) }
+
+          if (-not $ready)  { Write-Error 'GUI never printed "NiceGUI ready".'; exit 1 }
+          if (-not $served) { Write-Error 'GUI printed ready but did not serve the index page.'; exit 1 }
+          if ($all -match 'Traceback \(most recent call last\)') {
+            Write-Error 'GUI booted but logged a traceback.'
+            exit 1
+          }
+          Write-Host 'GUI booted and served the index page with no traceback.'
+
+      - name: Upload boot log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-boot-log
+          path: ${{ runner.temp }}/gui-boot.log*
+          if-no-files-found: ignore

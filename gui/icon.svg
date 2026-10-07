@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Transparent background (no <rect>). Three overlapping pebble shapes
+       on a faint grid hint, designed to read at any size from 16x16 favicon
+       up to a large header logo. -->
+
+  <!-- Subtle map-grid lines. Low opacity so they don't distract; signal "mapping" -->
+  <g stroke="#9aa6b3" stroke-width="1" opacity="0.18">
+    <line x1="64"  y1="0" x2="64"  y2="256"/>
+    <line x1="128" y1="0" x2="128" y2="256"/>
+    <line x1="192" y1="0" x2="192" y2="256"/>
+    <line x1="0" y1="64"  x2="256" y2="64"/>
+    <line x1="0" y1="128" x2="256" y2="128"/>
+    <line x1="0" y1="192" x2="256" y2="192"/>
+  </g>
+
+  <!-- Three overlapping pebble shapes (back to front), each rendered as
+       a slightly-imperfect ellipse to look natural rather than mathematical -->
+
+  <!-- Back-left pebble: cool grey -->
+  <ellipse cx="92"  cy="160" rx="58" ry="42"
+           transform="rotate(-20 92 160)"
+           fill="#7a8895" stroke="#3d4754" stroke-width="3"/>
+  <ellipse cx="78" cy="148" rx="14" ry="8"
+           transform="rotate(-20 78 148)"
+           fill="#a8b3bf" opacity="0.6"/>
+
+  <!-- Back-right pebble: warm tan -->
+  <ellipse cx="170" cy="120" rx="52" ry="40"
+           transform="rotate(15 170 120)"
+           fill="#c89060" stroke="#5a3f24" stroke-width="3"/>
+  <ellipse cx="158" cy="108" rx="13" ry="7"
+           transform="rotate(15 158 108)"
+           fill="#e0b48a" opacity="0.6"/>
+
+  <!-- Front pebble (largest, in front of the others): muted blue-grey -->
+  <ellipse cx="128" cy="160" rx="68" ry="48"
+           transform="rotate(-5 128 160)"
+           fill="#5a6878" stroke="#2a3340" stroke-width="3"/>
+  <ellipse cx="108" cy="146" rx="20" ry="10"
+           transform="rotate(-10 108 146)"
+           fill="#8a96a6" opacity="0.55"/>
+  <ellipse cx="148" cy="172" rx="6" ry="3"
+           transform="rotate(-5 148 172)"
+           fill="#8a96a6" opacity="0.35"/>
+</svg>

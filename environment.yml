@@ -1,0 +1,69 @@
+name: maskrcnn
+channels:
+  - conda-forge
+dependencies:
+  # --- Python runtime ---
+  - python=3.9
+
+  # --- CUDA stack (env-local, no system-wide install needed) ---
+  # CUDA 11.2 + cuDNN 8.1 are required by TF 2.10. Skip these on CPU-only machines.
+  - cudatoolkit=11.2
+  - cudnn=8.1.0
+
+  # --- GDAL via conda-forge ---
+  # Must be conda (not pip) on Windows; the C++ bindings don't build cleanly via pip.
+  # The version range matches what conda-forge currently resolves with NumPy 1.23.
+  - gdal>=3.6,<3.10
+
+  # --- Pip-managed dependencies ---
+  # Bundled here so `conda env create -f environment.yml` is one shot.
+  # NumPy is pinned because TF 2.10 crashes on NumPy 2.x and OpenCV 4.13+ silently
+  # pulls NumPy 2.x as a transitive dep. Listing it explicitly keeps the solver honest.
+  - pip
+  - pip:
+      - numpy==1.23.5
+      - tensorflow==2.10.1
+      - opencv-python==4.10.0.84
+      - scipy
+      - pandas
+      - matplotlib
+      - scikit-image
+      - shapely
+      - pillow
+      # HEIF/HEIC photographs (iPhone) open through Pillow with this plugin.
+      - pillow-heif
+      - cython
+      - imgaug
+      - h5py
+      - tqdm
+      - jupyter
+      - ipython
+
+      # --- GUI ---
+      # NiceGUI 2.x is used instead of Streamlit because Streamlit 1.30+ requires
+      # protobuf>=3.20, which is incompatible with TF 2.10.1's protobuf<3.20 cap.
+      # NiceGUI's dependency tree (FastAPI, Pydantic 2, Uvicorn) contains no
+      # protobuf reference at all, so it installs cleanly alongside TF 2.10.
+      # Pinned to <3 because NiceGUI 3.x dropped Python 3.9 support.
+      - nicegui>=2.0,<3
+      # FastAPI is a transitive dep of nicegui; listing it explicitly so the
+      # solver doesn't accidentally pick a too-old version that breaks pydantic 2.
+      - fastapi
+
+      # --- Publication-quality map export ---
+      # contextily fetches ESRI/OSM basemap tiles for matplotlib figures.
+      # matplotlib-scalebar adds the QGIS-style scale bar.
+      - contextily
+      - matplotlib-scalebar
+
+      # --- PDF project report ---
+      # Pure-Python PDF builder used by the Report tab to produce the
+      # project-level structured report (cover, methodology, stats, maps,
+      # validation, appendices).
+      - reportlab
+
+      # --- Test suite ---
+      # Required by `python -m pytest`. Listed explicitly because the suite is
+      # the documented way to check an install: without it a fresh environment
+      # created from this file reports "No module named pytest".
+      - pytest

@@ -1,0 +1,48 @@
+{
+  "transform": [
+    [
+      -0.0004335805618575843,
+      -0.0003693347525095085,
+      497976.84363554546
+    ],
+    [
+      -0.0003693347525095084,
+      0.00043358056185758415,
+      6960105.239613421
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "provenance": "fitted",
+  "quality": {
+    "n_correspondences": 0,
+    "n_inliers": 77,
+    "inlier_fraction": 0.0,
+    "residual_m": 0.00309,
+    "scale": null,
+    "scale_expected": null,
+    "rotation_deg": null,
+    "accepted": true,
+    "frame_inset_px": 0,
+    "rival_inliers": 0,
+    "rival_checked": true,
+    "candidates": [],
+    "reasons": []
+  },
+  "seed_xy": [
+    497975.5555375805,
+    6960105.098834269
+  ],
+  "quadrat_gsd_m": 0.000567,
+  "ortho_gsd_m": 0.0034149300000001544,
+  "crs": "PROJCS[\"RGF93 v1 / Lambert-93\",GEOGCS[\"RGF93 v1\",DATUM[\"Reseau_Geodesique_Francais_1993_v1\",SPHEROID[\"GRS 1980\",6378137,298.257222101004,AUTHORITY[\"EPSG\",\"7019\"]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY[\"EPSG\",\"6171\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4171\"]],PROJECTION[\"Lambert_Conformal_Conic_2SP\"],PARAMETER[\"latitude_of_origin\",46.5],PARAMETER[\"central_meridian\",3],PARAMETER[\"standard_parallel_1\",49],PARAMETER[\"standard_parallel_2\",44],PARAMETER[\"false_easting\",700000],PARAMETER[\"false_northing\",6600000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"2154\"]]",
+  "sources": {
+    "quadrat": "validation/orthorectified/IMG_0955_rectified_GSD=0.000567m.jpg",
+    "ortho": "input_data/images/etretat_20200610_ortho_crop.tif",
+    "note": "paths relative to this example project; the fit was made against the full survey ortho, of which input_data/images holds a crop"
+  },
+  "ransac_seed": 20260805
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "rasterize_version": "1.0.0",
+  "generated_at": "2026-09-20T17:29:01",
+  "raster_path": "example_03_Etretat__etretat_20200610_ortho_crop_Clast_length_D50_cellsize=1m.tif",
+  "parameter": "quantile",
+  "n_bands": 1,
+  "source_image": "etretat_20200610_ortho_crop.tif",
+  "source_csv": "example_03_Etretat__etretat_20200610_ortho_crop_ws1m.csv",
+  "field": "Clast_length",
+  "cellsize_m": 1.0,
+  "percentile": 0.5,
+  "bin_mode": "fixed",
+  "bin_field": "Clast_length",
+  "bin_edges_m": null,
+  "wave_period_s": 10.0,
+  "min_cell_density": 0
+}
