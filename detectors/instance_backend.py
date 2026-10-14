@@ -278,7 +278,13 @@ class InstanceSubprocessBackend(DetectorBackend):
             x0 = max(0, sl[1].start - pad)
             x1 = min(labels.shape[1], sl[1].stop + pad)
             mask = ndi.binary_fill_holes(labels[y0:y1, x0:x1] == k)
-            meas = measure_mask(mask, float(scores[k - 1]), resolution)
+            try:
+                meas = measure_mask(mask, float(scores[k - 1]), resolution)
+            except (np.linalg.LinAlgError, ValueError, ZeroDivisionError):
+                # A degenerate instance (a single pixel, a straight line) has
+                # no ellipse; it must not discard the image's other clasts.
+                # Counted in the "unmeasurable skipped" figure of the run log.
+                meas = None
             if meas is None:
                 skipped += 1
                 continue

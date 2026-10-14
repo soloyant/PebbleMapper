@@ -211,3 +211,18 @@ def test_missing_modules_accepts_an_editable_install(tmp_path):
     site.mkdir(parents=True)
     (site / "__editable__.segmenteverygrain-0.2.pth").write_text("")
     assert subprocess_runner.missing_modules(tmp_path, ("segmenteverygrain",)) == []
+
+
+def test_a_single_pixel_instance_does_not_discard_the_image(tmp_path):
+    """One 1-pixel instance among 209 raised 'Singular matrix' in the ellipse
+    fit and the whole photograph came back with no clast. It is now skipped
+    and counted."""
+    lab = _labels()
+    lab[5, 100] = 4                                   # a lone pixel
+    img = _photo(tmp_path / "q.jpg")
+    logs = []
+    be = _Fake(labels=lab)
+    frames = be.detect_jobs("quadrat", [{"path": str(img)}], resolution=0.001,
+                            output_dir=str(tmp_path), log_fn=logs.append)
+    assert len(frames[0]) == 3
+    assert any("1 unmeasurable skipped" in line for line in logs)
