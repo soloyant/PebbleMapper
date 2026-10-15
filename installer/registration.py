@@ -194,5 +194,13 @@ def load_entry(entry: dict) -> List[tuple]:
                 Path(entry["code"]), package, module, f"{alias}__{package}")
         backend = call_factory(imported[(package, module)], package, module,
                                b.get("factory", "make_backend"), ctx)
-        out.append((registry_key(b["name"], entry), backend))
+        key = registry_key(b["name"], entry)
+        # What a run's log and record name (spec 032 FR-012, FR-017): the
+        # release, and the files the install checked (the weights' SHA-256).
+        try:
+            backend.registry_key = key
+            backend.installed_entry = entry
+        except Exception:
+            pass                       # a backend that refuses attributes
+        out.append((key, backend))
     return out

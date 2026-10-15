@@ -434,6 +434,55 @@ def summary(story, ss, inv, stats, facts, options, log, *, dpi, quality):
 
 
 # --- 1  Data and processing ---
+def _model_display(model: str) -> str:
+    """A model's name for the reader, from the registry when it is installed."""
+    if model == "maskrcnn":
+        return "Mask R-CNN (Soloy et al. 2020)"
+    try:
+        from detectors import registry
+        for b in registry.all_backends():
+            if getattr(b.info, "name", None) == model:
+                return b.info.display_name
+    except Exception:
+        pass
+    return model
+
+
+def _short_list(names, n=6) -> str:
+    names = list(names)
+    head = ", ".join(names[:n])
+    return head + (f" and {len(names) - n} more" if len(names) > n else "")
+
+
+def _model_settings_texts(models) -> list:
+    """One paragraph per model and release (spec 032 FR-018): the distinct
+    sets of values that differ from PebbleMapper's, with the images each made."""
+    out = []
+    for g in models:
+        name = _model_display(g["model"])
+        rel = f", release {g['release']}" if g.get("release") and \
+            g["release"][0].isdigit() else ""
+        changed = [s for s in g["sets"] if s["values"]]
+        if not changed:
+            text = (f"<b>{name}{rel}</b>: every setting was PebbleMapper's value.")
+        else:
+            parts = []
+            for s in changed:
+                vals = ", ".join(f"{k} = {v}" for k, v in sorted(s["values"].items()))
+                parts.append(f"{vals} (images: {_short_list(s['images'])})")
+            plain = [s for s in g["sets"] if not s["values"]]
+            text = (f"<b>{name}{rel}</b>: settings that differ from PebbleMapper's values: "
+                    + "; ".join(parts)
+                    + (f"; PebbleMapper's values for the other images "
+                       f"({_short_list(plain[0]['images'])})" if plain else "")
+                    + ". All other settings were PebbleMapper's values.")
+        if g.get("not_reported"):
+            text += (" This release does not report the values it used (images: "
+                     f"{_short_list(g['not_reported'])}).")
+        out.append(text)
+    return out
+
+
 def data_and_processing(story, ss, inv, facts, options, log, section):
     from reportlab.platypus import Paragraph, PageBreak
     R = _R()
@@ -481,13 +530,20 @@ def data_and_processing(story, ss, inv, facts, options, log, section):
     dedup = ", ".join(p["dedup"]) or "—"
     conf = ", ".join(p["min_confidence"]) or "—"
     texts = []
+    models = facts.get("detection_models") or []
+    used = {g["model"] for g in models}
+    if used and "maskrcnn" not in used:
+        processed_by = ("processed by " + ", ".join(sorted(_model_display(m) for m in used))
+                        + " (see the models below)")
+    else:
+        processed_by = ("processed by the Mask R-CNN instance segmentation network "
+                        "(He et al. 2017) trained on pebble-beach imagery (Soloy et al. 2020)")
     if facts["n_ortho"]:
         texts.append(
             f"Each ortho-image was tiled at {len(p['windows_m']) or 'one'} window "
             f"{_plural(len(p['windows_m']) or 1, 'size')} ({windows}; overlap {overlap}) "
-            f"and every tile was processed by the Mask R-CNN instance segmentation "
-            f"network (He et al. 2017) trained on pebble-beach imagery (Soloy et al. "
-            f"2020). Detections from overlapping tiles and windows were pooled and "
+            f"and every tile was {processed_by}. "
+            f"Detections from overlapping tiles and windows were pooled and "
             f"duplicates removed where masks overlap by more than the IoU threshold "
             f"({dedup}); the result is one merged clast list per image. A larger "
             f"window is resampled to the network input, so it resolves larger "
@@ -512,6 +568,7 @@ def data_and_processing(story, ss, inv, facts, options, log, section):
         "(Kellerhals and Bray 1971).")
     if p["min_confidence"] and p["min_confidence"] != ["—"]:
         texts.append(f"Detections below a confidence of {conf} were discarded.")
+    texts.extend(_model_settings_texts(models))
     for t in texts:
         _para(story, ss, t)
     if facts["rasters_by_image"]:

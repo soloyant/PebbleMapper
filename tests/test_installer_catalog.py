@@ -218,3 +218,16 @@ def test_an_app_release_without_its_file_list_is_refused():
                                        if f["role"] != "file_list"]
     with pytest.raises(catalog.ListError, match="file_list"):
         catalog.validate(dict(copy.deepcopy(GOOD), app_releases=[bad]))
+
+
+def test_describes_settings_is_optional_and_boolean():
+    """032: a release may say it ships its settings description."""
+    R = ("models", 0, "releases", 0, "describes_settings")
+    catalog.validate(_bad(R, True))
+    with pytest.raises(catalog.ListError):
+        catalog.validate(_bad(R, "yes"))
+    path = (Path(__file__).resolve().parents[1] / "specs" / "030-plugin-installer-updates" /
+            "contracts" / "list.schema.json")
+    if path.is_file():
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        assert schema["$defs"]["release"]["properties"]["describes_settings"]["type"] == "boolean"

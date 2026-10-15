@@ -294,6 +294,16 @@ def run_detect_jobs(backend: "DetectorBackend", mode: str, jobs: list,
         fwd.pop("progress_callback", None)
     exclude_frame = bool(fwd.pop("exclude_frame", True))
     frame_fallback_m = fwd.pop("frame_fallback_m", None)
+    # Every run's log begins with what it runs (spec 032 FR-012).
+    _log = fwd.get("log_fn")
+    if _log is not None:
+        try:
+            from detectors.settings import run_header
+            for line in run_header(backend, mode, fwd.get("model_options") or {},
+                                   fwd.get("devicemode"), fwd.get("devicenumber")):
+                _log(line)
+        except Exception as ex:
+            _log(f"[settings] could not describe the run: {ex}")
 
     import shutil as _shutil
     import tempfile as _tempfile

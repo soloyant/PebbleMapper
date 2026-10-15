@@ -579,3 +579,131 @@ def test_run_asks_about_another_release_only_once(clean, project, monkeypatch):
         assert started.get("started"), "and the run starts at once"
     finally:
         A._RELEASE_ASKED.discard(("P", "orthosam@1.0.1"))
+
+
+def test_a_queued_job_keeps_the_model_and_values_it_was_queued_with(clean, project, monkeypatch):
+    """032 US3 scenario 4: values changed after "Add to queue" do not reach
+    jobs already queued; the job also keeps its model and card."""
+    from gui import app as A
+    import nicegui
+    import detectors
+    from detectors import maskrcnn as _mr
+    monkeypatch.setattr(nicegui.ui, "run_javascript", lambda *a, **k: None)
+    monkeypatch.setattr(_mr.MaskRCNNBackend, "is_available", lambda self: True)
+    state, _ = clean
+    state.current_project = "P"
+    state.det_mode = "quadrat"
+    state.det_dir = ""
+    state.devicenumber = 1
+    A._RELOAD_MODEL_BTN["btn"] = None
+    values = {"v": {"min_confidence": 0.5}}
+    monkeypatch.setattr(A, "model_options_for_run", lambda model, mode: dict(values["v"]))
+    col = _build(clean)
+    inp = next(e for e in _walk(col) if e.__class__.__name__ == "Input"
+               and e._props.get("label") == "Image directory")
+    inp.value = str(project["images"])
+    _press(col, "Add to queue")
+    job = state.det_jobs[0]
+    assert job["model_options"] == {"min_confidence": 0.5} and job["devicenumber"] == 1
+    assert job["model"] == "maskrcnn"
+    values["v"] = {"min_confidence": 0.9}               # changed after queueing
+    state.devicenumber = 0
+    seen = {}
+
+    def fake_run(backend, mode, jobs, **kw):
+        seen.update(kw)
+        return []
+    monkeypatch.setattr(detectors, "run_detect_jobs", fake_run)
+    import threading
+
+    class _Inline:
+        def __init__(self, target=None, daemon=None, **kw):
+            self.target = target
+
+        def start(self):
+            self.target()
+    monkeypatch.setattr(threading, "Thread", _Inline)
+    _press(col, "Run all queued")
+    assert seen.get("model_options") == {"min_confidence": 0.5}
+    assert seen.get("devicenumber") == 1
+
+
+def test_run_asks_once_when_the_project_holds_results_made_with_other_settings(
+        clean, project, monkeypatch):
+    """032 FR-021: results of the model made with other values: one question
+    per set of values; results from before 032 count as PebbleMapper's."""
+    from gui import app as A
+    import nicegui
+    from nicegui import background_tasks
+    from detectors import maskrcnn as _mr
+    from detectors import settings as S
+    monkeypatch.setattr(nicegui.ui, "run_javascript", lambda *a, **k: None)
+    monkeypatch.setattr(_mr.MaskRCNNBackend, "is_available", lambda self: True)
+    state, _ = clean
+    state.current_project = "P"
+    state.det_mode = "quadrat"
+    state.det_dir = ""
+    A._RELOAD_MODEL_BTN["btn"] = None
+    A._SETTINGS_ASKED.clear()
+    col = _build(clean)
+    inp = next(e for e in _walk(col) if e.__class__.__name__ == "Input"
+               and e._props.get("label") == "Image directory")
+    inp.value = str(project["images"])
+    _press(col, "Add to queue")
+    current = {"v": {}}
+    monkeypatch.setattr(A, "model_options_for_run", lambda model, mode: dict(current["v"]))
+    sets = {"v": [{}]}                                   # a pre-032 result only
+    monkeypatch.setattr(S, "recorded_value_sets", lambda folder, model: list(sets["v"]))
+    tasks = []
+    monkeypatch.setattr(background_tasks, "create", lambda coro, **k: tasks.append(coro))
+    import threading
+
+    class _NoThread:
+        def __init__(self, target=None, daemon=None, **kw):
+            pass
+
+        def start(self):
+            pass
+    monkeypatch.setattr(threading, "Thread", _NoThread)
+    _press(col, "Run all queued")
+    assert tasks == [], "untouched settings and pre-032 results: nothing to ask"
+    current["v"] = {"min_confidence": 0.5}
+    _press(col, "Run all queued")
+    assert len(tasks) == 1, "the project's results used PebbleMapper's values"
+    tasks[0].close()
+    A._SETTINGS_ASKED.add(("P", "maskrcnn", '{"min_confidence": 0.5}'))
+    _press(col, "Run all queued")
+    assert len(tasks) == 1, "asked once for this set of values"
+
+
+def test_shared_controls_a_model_does_not_use_are_greyed_with_the_reason(
+        clean, monkeypatch, tmp_path):
+    """032 FR-022: from the selected model's description."""
+    import copy
+    import json
+    from gui import app as A
+    import detectors
+    from tests.test_model_settings import DESC
+    d = copy.deepcopy(DESC)
+    d["model"] = "fakeplug"
+    f = tmp_path / "pm_settings.json"
+    f.write_text(json.dumps(d), encoding="utf-8")
+
+    class _B:
+        class info:
+            name = "fakeplug"
+        settings_file = f
+        variant = "gpu"
+    A._SHARED_NOTES.clear()
+    col = _build(clean)
+    monkeypatch.setattr(A, "current_detection_model", lambda: ("fakeplug", "Fake"))
+    monkeypatch.setattr(detectors, "get_backend", lambda name: _B())
+    A.refresh_shared_notes()
+    notes = {c: lab for _cl, c, lab, _el in A._SHARED_NOTES}
+    assert notes["confidence"].text == "Not used by Fake: it gives no detector confidence."
+    assert notes["confidence"].visible
+    assert not notes["overlap"].visible
+    monkeypatch.setattr(A, "current_detection_model", lambda: ("maskrcnn", "Mask R-CNN"))
+    monkeypatch.setattr(detectors, "get_backend", lambda name: None)
+    A.refresh_shared_notes()
+    assert not notes["confidence"].visible

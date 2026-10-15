@@ -287,6 +287,13 @@ def _report_unavailable(backend: DetectorBackend) -> None:
 
 
 # Discover third-party backends at import time so every entry point sees the same registry.
+# First, no environment variable may change a model's settings or device
+# (spec 032 FR-019): removed before any plug-in is imported.
+try:
+    from detectors.settings import strip_setting_env
+    strip_setting_env()
+except Exception as _ex:                              # never block startup
+    _log.warning("Model settings variables could not be checked: %s", _ex)
 try:
     load_user_backends()
 except Exception as _ex:                              # never block startup

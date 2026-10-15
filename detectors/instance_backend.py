@@ -151,10 +151,17 @@ class InstanceSubprocessBackend(DetectorBackend):
 
         params = {k: kwargs[k] for k in (
             "resolution", "metric_cropsize", "overlap", "min_confidence",
-            "devicemode") if k in kwargs}
+            "devicemode", "devicenumber") if k in kwargs}
         if self.variant == "cpu":
             params["devicemode"] = "CPU"
         params["resolution"] = resolution
+        # Only the values the user changed, described by this release and
+        # valid for it, reach the model (spec 032 FR-005, FR-015); a release
+        # that does not describe its settings is sent none.
+        description = self._settings_description()
+        sent = self._options_to_send(description, mode, kwargs.get("model_options"),
+                                     log_fn)
+        kwargs = dict(kwargs, model_options=sent)
         params.update(self.spec_params(mode, kwargs, resolution))
         spec = {"mode": mode, "params": params,
                 "canonical_columns": list(CANONICAL_COLUMNS),
@@ -189,8 +196,9 @@ class InstanceSubprocessBackend(DetectorBackend):
                 DetectionManifest(
                     model=self.info.name, model_version=self.model_version,
                     weights=self.info.weights, license=self.info.license,
-                    params={k: v for k, v in params.items()
-                            if k not in ("weights_dir",)},
+                    params=self._record_params(params, description, sent,
+                                               _read_resolved(npz, log_fn),
+                                               getattr(self, "installed_entry", None)),
                     gsd_m=resolution,
                 ).write_for_completed_csv(csv_path, run_started)
                 if kwargs.get("saveplot") and mode == modes.QUADRAT:
@@ -206,6 +214,92 @@ class InstanceSubprocessBackend(DetectorBackend):
                                     "traceback": traceback.format_exc()})
                 results.append(pd.DataFrame())
         return results
+
+    def _visible_device(self, params) -> Optional[str]:
+        """``CUDA_VISIBLE_DEVICES`` for a run on the graphics card, or None.
+        A card number this computer does not have is refused, never replaced
+        by another card (Principle I)."""
+        from detectors.settings import gpu_names
+        if self.variant == "cpu" or str(params.get("devicemode", "")).upper() != "GPU":
+            return None
+        n = params.get("devicenumber")
+        if n is None:
+            return None
+        n = int(n)
+        names = gpu_names()
+        if n < 0 or (n > 0 and n >= len(names)):
+            have = (f"cards 0 to {len(names) - 1}" if names else "no NVIDIA card found")
+            raise RuntimeError(f"Graphics card {n} does not exist on this computer "
+                               f"({have}). Choose another Device # in the left panel.")
+        return str(n)
+
+    # ------------------------------------------------------- settings (032)
+    def _settings_description(self):
+        from detectors import settings as S
+        return S.load_description(self)
+
+    @staticmethod
+    def _options_to_send(description, mode, options, log_fn) -> dict:
+        """The changed values a run may send: described, used in ``mode``,
+        and valid. Anything else is dropped and said."""
+        from detectors import settings as S
+        if not options:
+            return {}
+        if description is None:
+            log_fn("[settings] this model release does not describe its settings; "
+                   "its built-in values are used")
+            return {}
+        by_key = {s["key"]: s for s in description["settings"]}
+        sent = {}
+        for key, value in options.items():
+            s = by_key.get(key)
+            if s is None or mode not in s["modes"]:
+                log_fn(f"[settings] {key} is not a setting of this release in {mode}; "
+                       "not sent")
+                continue
+            try:
+                sent[key] = S.validate_value(s, value)
+            except ValueError as ex:
+                log_fn(f"[settings] {s['label']} = {value!r} not sent: {ex}")
+        return sent
+
+    @staticmethod
+    def _record_params(params, description, sent, resolved, entry=None) -> dict:
+        """The result's record (spec 032 FR-016, FR-017): what was sent, what
+        the model reports it used, and the shared controls it did not use."""
+        out = {k: v for k, v in params.items() if k not in ("weights_dir",)}
+        out["settings_changed"] = dict(sent)
+        if resolved is None:
+            out["settings_used"] = "built-in, not reported"
+        else:
+            out["settings_used"] = resolved.get("settings", {})
+            for src, dst in (("versions", "model_versions"),
+                             ("reduction", "image_reduction"),
+                             ("tiles", "effective_tiles_px")):
+                if src in resolved:
+                    out[dst] = resolved[src]
+        dev = {"mode": params.get("devicemode"), "number": params.get("devicenumber")}
+        if resolved and isinstance(resolved.get("device"), dict) \
+                and resolved["device"].get("name"):
+            dev["name"] = resolved["device"]["name"]
+        out["device"] = dev
+        # The weights the install checked, by SHA-256 (030); a model installed
+        # by hand has no checked list, and the record says so.
+        if entry is not None:
+            out["release"] = str(entry.get("release", ""))
+            out["weights_sha256"] = {f["path"]: f.get("sha256") for f in entry.get("files", [])
+                                     if str(f.get("path", "")).startswith("weights/")}
+        else:
+            out["weights_sha256"] = "not recorded: a model installed by hand"
+        if description is not None:
+            shared_value = {"confidence": "min_confidence", "overlap": "overlap",
+                            "tile_size": "metric_cropsize", "device_number": "devicenumber"}
+            not_applied = {}
+            for control, key in shared_value.items():
+                if control not in description["shared_controls"] and key in out:
+                    not_applied[control] = out.pop(key)
+            out["not_applied"] = not_applied
+        return out
 
     # ---------------------------------------------------------------- pieces
     def _run_streaming(self, spec, log_fn, stop_check, timeout):
@@ -228,6 +322,11 @@ class InstanceSubprocessBackend(DetectorBackend):
         tail: List[str] = []
         try:
             env = dict(os.environ, TQDM_DISABLE="1", PYTHONIOENCODING="utf-8")
+            # The chosen card, for every release (spec 032 FR-022): the run
+            # sees only that card, as its first device.
+            visible = self._visible_device(spec.get("params", {}))
+            if visible is not None:
+                env["CUDA_VISIBLE_DEVICES"] = visible
             if subprocess_runner.is_prefix_env(self.env_name):
                 # A model the app installed runs only what its lock installed,
                 # never a package from ~\AppData\Roaming\Python (030 FR-007).
@@ -399,6 +498,23 @@ class InstanceSubprocessBackend(DetectorBackend):
             log_fn(f"[{self.log_prefix}] overlay -> {out}")
         except Exception as ex:
             log_fn(f"[{self.log_prefix}] overlay skipped: {ex}")
+
+
+def _read_resolved(npz_path, log_fn=None):
+    """What a 032 release reports it used (``resolved`` in its result file),
+    or None when it reports nothing; an unreadable report is said, never a
+    failure of the run (contracts/resolved-values.md)."""
+    import numpy as np
+    try:
+        with np.load(npz_path) as data:
+            if "resolved" not in data.files:
+                return None
+            value = json.loads(str(data["resolved"]))
+        return value if isinstance(value, dict) else None
+    except Exception as ex:
+        if log_fn:
+            log_fn(f"[settings] the values the model used could not be read ({ex})")
+        return None
 
 
 def _geotransform(path):

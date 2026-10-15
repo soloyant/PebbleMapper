@@ -71,7 +71,10 @@ def test_maskrcnn_manifest_names_maskrcnn_and_replaces_a_stale_one(
     d = json.loads(stale.read_text(encoding="utf-8"))
     assert d["model"] == "maskrcnn"
     assert d["license"] == b.info.license
-    assert d["params"] == kw
+    assert {k: d["params"][k] for k in kw} == kw
+    # Spec 032: what the run used, what was changed, the device, the weights.
+    assert {"settings_used", "settings_changed", "device", "not_applied",
+            "weights_sha256"} <= set(d["params"])
 
 
 def test_maskrcnn_write_manifests_needs_nothing_imported_inside_detect_jobs(

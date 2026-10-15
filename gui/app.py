@@ -383,6 +383,7 @@ def prepare_browser_image(src_path: str, *,
         max_dim=max_dim, cache_subdir=cache_subdir)
 
 from nicegui import ui, app, context  # noqa: E402
+from nicegui import Client as _NgClient  # noqa: E402
 
 from gui.components.job_queue import render_queue  # noqa: E402
 from gui.components.log_console import build_log_console  # noqa: E402,F401
@@ -3876,6 +3877,140 @@ def current_detection_model() -> tuple:
     return name, opts[name]
 
 
+def model_settings_context(mode=None):
+    """The selected model, its backend, the project folder and the mode
+    (``mode``, else the Detect tab's), for the model settings panel (spec
+    032); None when no model is offered."""
+    from gui.model_settings_panel import Context
+    from detectors import get_backend as _gb
+    name, label = current_detection_model()
+    backend = _gb(name)
+    if backend is None:
+        return None
+    proj = project_path(state.current_project) if state.current_project else None
+    return Context(model_key=name, display_name=label, backend=backend,
+                   project_dir=Path(proj) if proj else None,
+                   mode=normalise_mode(mode or state.det_mode, default=QUADRAT))
+
+
+def model_options_for_run(model_key: str, mode: str) -> dict:
+    """The values the project changed for this model and mode: all a run
+    sends (spec 032 FR-015). Checked against the release's description."""
+    from detectors import settings as _S
+    from detectors import get_backend as _gb
+    backend = _gb(model_key)
+    desc = _S.load_description(backend) if backend is not None else None
+    if desc is None:
+        return {}
+    proj = project_path(state.current_project) if state.current_project else None
+    store = _S.ProjectSettings(_S.store_path(Path(proj) if proj else None))
+    store.check_against(model_key, desc)
+    return store.changed(model_key, normalise_mode(mode, default=QUADRAT), desc)
+
+
+# The shared controls a model may not use (spec 032 FR-022): a line under
+# each, filled from the selected model's description, and the control greyed.
+_SHARED_NOTES: list = []        # (client, control, note label, greyed element)
+
+
+def shared_control_note(control: str, element=None):
+    """A note line for a shared control, shown while the selected model does
+    not use it; ``element`` is greyed meanwhile."""
+    lab = ui.label("").classes("text-caption text-grey-7 pm-not-used")
+    lab.set_visibility(False)
+    _SHARED_NOTES.append((context.client, control, lab, element))
+    return lab
+
+
+def refresh_shared_notes() -> None:
+    from detectors import settings as _S
+    from detectors import get_backend as _gb
+    name, label = current_detection_model()
+    backend = _gb(name)
+    desc = _S.load_description(backend) if backend is not None else None
+    variant_cpu = getattr(backend, "variant", "gpu") == "cpu"
+    short = label.split(" (")[0]            # "PebbleCountsAuto", not its authors too
+
+    def reason_for(control):
+        if desc is not None and control not in desc["shared_controls"]:
+            return desc["not_used"].get(control, "")
+        if variant_cpu and control in ("device", "device_number"):
+            return "this is the processor version of the model."
+        return None
+
+    alive = []
+    for client, control, lab, el in _SHARED_NOTES:
+        if getattr(client, "id", None) not in _NgClient.instances:      # page gone
+            continue
+        alive.append((client, control, lab, el))
+        reason = reason_for(control)
+        if control == "tile_size" and normalise_mode(state.det_mode, default=QUADRAT) != ORTHO:
+            reason = None                   # the Tile size field is shown for orthos only
+        # Device # sits under GPU/CPU: one note for both when they say the same.
+        same_as_device = control == "device_number" and reason is not None \
+            and reason == reason_for("device")
+        try:
+            if reason is None:
+                lab.set_visibility(False)
+                if el is not None:
+                    el.style(remove="opacity: 0.45")
+            else:
+                lab.set_text(f"Not used by {short}: {reason}")
+                lab.set_visibility(not same_as_device)
+                if el is not None:
+                    el.style(add="opacity: 0.45")
+        except Exception:
+            pass
+    _SHARED_NOTES[:] = alive
+
+
+# Mask R-CNN's settings are also Detect-tab controls (032 research R8): one
+# value, two views — the project's store is the truth, the sliders show it.
+_MRCNN_STATE_FIELDS = {"min_confidence": "det_min_confidence",
+                       "dedup_overlap": "det_dedup_overlap"}
+
+
+def apply_model_settings_to_state() -> None:
+    """Show the project's Mask R-CNN values in the Detect tab's sliders."""
+    from detectors import settings as _S
+    ctx = model_settings_context()
+    if ctx is None or _S.model_name(ctx.model_key) != "maskrcnn":
+        return
+    desc = _S.load_description(ctx.backend)
+    if desc is None:
+        return
+    values = _S.ProjectSettings(_S.store_path(ctx.project_dir)).values(ctx.model_key, ctx.mode)
+    for s in desc["settings"]:
+        attr = _MRCNN_STATE_FIELDS.get(s["key"])
+        v = values.get(s["key"], _S.default_for(s, ctx.mode))
+        if attr and v is not None and not isinstance(v, dict) \
+                and getattr(state, attr) != v:
+            setattr(state, attr, v)
+
+
+def store_mask_rcnn_value(key: str, value) -> None:
+    """A Detect-tab slider moved: write it to the project's store, so the
+    panel, the label and the next run agree."""
+    from detectors import settings as _S
+    from detectors import get_backend as _gb
+    from gui import model_settings_panel as _msp
+    backend = _gb("maskrcnn")
+    desc = _S.load_description(backend) if backend is not None else None
+    if desc is None or value is None:
+        return
+    proj = project_path(state.current_project) if state.current_project else None
+    mode = normalise_mode(state.det_mode, default=QUADRAT)
+    if not any(s["key"] == key and mode in s["modes"] for s in desc["settings"]):
+        return
+    try:
+        _S.ProjectSettings(_S.store_path(Path(proj) if proj else None)).set(
+            "maskrcnn", mode, desc, key, round(float(value), 4))
+    except ValueError as ex:
+        print(f"[models] Mask R-CNN {key} not stored: {ex}", flush=True)
+        return
+    _msp.notify_changed()
+
+
 def _model_hint(name: str) -> str:
     if name == "maskrcnn":
         return ("Used by Detect, Express and Digitize's Detect.")
@@ -4021,6 +4156,8 @@ _MODEL_SELECTS: list = []
 
 # (project, model key) pairs already asked about in this run of the app.
 _RELEASE_ASKED: set = set()
+# (project, model name, values) already asked about (032 FR-021).
+_SETTINGS_ASKED: set = set()
 
 
 def other_release_in_folder(folder, key: str):
@@ -4083,8 +4220,10 @@ def render_detection_settings():
     The model select is built with ``value=`` and writes ``state.det_model``
     in its on_change, never two-way bound: a select bound to shared state
     whose options lack the value nulls it from every other open page."""
-    ui.toggle(["GPU", "CPU"]).bind_value(state, "devicemode")
-    ui.number(label="Device #", min=0, step=1).bind_value(state, "devicenumber")
+    _dev_toggle = ui.toggle(["GPU", "CPU"]).bind_value(state, "devicemode")
+    shared_control_note("device", _dev_toggle)
+    _dev_num = ui.number(label="Device #", min=0, step=1).bind_value(state, "devicenumber")
+    shared_control_note("device_number", _dev_num)
     opts = detection_model_options()
     name, _label = current_detection_model()
     hint = ui.label(_model_hint(name)) \
@@ -4102,6 +4241,12 @@ def render_detection_settings():
                  "Digitize's Detect. Mask R-CNN is built in; add more models "
                  "from the Models tab.")
     hint.move(target_index=sel.parent_slot.children.index(sel) + 1)
+    # The model's settings, and how many differ from PebbleMapper's (032).
+    from gui import model_settings_panel as _msp
+    settings_host = ui.element("div")
+    _seen_settings_context = {"where": None}
+    refresh_settings_entry = _msp.build_entry(model_settings_context, settings_host,
+                                              on_change=apply_model_settings_to_state)
 
     def _open_models_tab():
         state.active_tab = "Models"
@@ -4136,6 +4281,15 @@ def render_detection_settings():
             status.set_text(model_status_text())
         except Exception as ex:
             status.set_text(f"Model: (status err: {ex})")
+        # The model, the project or the mode may have changed (032): the
+        # label follows, and on a change the Detect sliders show that
+        # project's Mask R-CNN values (never while a slider is moved).
+        refresh_settings_entry()
+        refresh_shared_notes()
+        where = (state.det_model, state.current_project, state.det_mode)
+        if where != _seen_settings_context["where"]:
+            _seen_settings_context["where"] = where
+            apply_model_settings_to_state()
 
     def _reload():
         msg, kind = reload_detection_model()
@@ -4236,8 +4390,13 @@ def build_express_tab():
     # The model is the drawer's (Settings), shared with Detect and Digitize.
     ui.label("").classes("text-sm text-grey-7 pm-model-caption") \
         .bind_text_from(state, "det_model", backward=lambda _m: (
-            f"Detection model: {current_detection_model()[1]} "
-            "(chosen in the left panel, Settings)"))
+            f"Detection model: {current_detection_model()[1]}, "
+            "chosen in the left panel."))
+    # Its settings for orthos, and how many are changed (spec 032 FR-011).
+    from gui import model_settings_panel as _msp_x
+    _x_refresh = _msp_x.build_entry(lambda: model_settings_context(ORTHO),
+                                    on_change=apply_model_settings_to_state)
+    ui.timer(2.0, _x_refresh)
 
     ui.label("Detection window size(s) — editable; results are merged when "
              "more than one window is used:").classes("text-sm text-grey-7 mt-1")
@@ -4389,6 +4548,8 @@ def build_express_tab():
                         state.express_preset,
                         windows=list(state.express_windows),
                         model=current_detection_model()[0],
+                        model_options=model_options_for_run(
+                            current_detection_model()[0], ORTHO),
                         log_fn=log_widget.push,
                         on_stage=_on_stage,
                         stop_check=lambda: state.express_stop,
@@ -4777,9 +4938,13 @@ def build_detection_tab():
     # The model is chosen once, in the drawer (Settings); this line names it.
     with ui.row().classes("items-center gap-2") as _det_model_row:
         _det_model_caption = ui.label(
-            f"Detection model: {current_detection_model()[1]} "
-            "(chosen in the left panel, Settings)") \
+            f"Detection model: {current_detection_model()[1]}, "
+            "chosen in the left panel.") \
             .classes("text-sm text-grey-8 pm-model-caption")
+        # Its settings, and how many are changed (spec 032 FR-011).
+        from gui import model_settings_panel as _msp_d
+        _det_settings_refresh = _msp_d.build_entry(model_settings_context,
+                                                   on_change=apply_model_settings_to_state)
 
     _det_dir_input = {"el": None}
 
@@ -5051,7 +5216,7 @@ def build_detection_tab():
                          "photographs whose record does not give it. It needs "
                          "the photograph's GSD. Empty: such a photograph is "
                          "measured whole.")
-            ui.number(label="Tile size (m)", min=0.5, max=20.0, step=0.5,
+            _tile_field = ui.number(label="Tile size (m)", min=0.5, max=20.0, step=0.5,
                       format="%.1f") \
 .bind_value(state, "det_metric_cropsize") \
 .bind_visibility_from(state, "det_mode", value=ORTHO) \
@@ -5059,8 +5224,9 @@ def build_detection_tab():
 .tooltip("Side length of each processed tile, in metres. "
                          "Larger tiles are faster but may miss smaller clasts. "
                          "Typical values: 1 m for pebbles, 2.5 m for cobbles.")
+            shared_control_note("tile_size", _tile_field)
 
-        with ui.column().classes("min-w-[18rem]"):
+        with ui.column().classes("min-w-[18rem]") as _conf_col:
             ui.label("Detection filter").classes("text-sm text-grey-7")
             ui.checkbox("Filter by confidence") \
 .bind_value(state, "det_min_conf_enabled") \
@@ -5070,17 +5236,19 @@ def build_detection_tab():
                 ui.label("Min confidence:")
                 ui.slider(min=0.0, max=1.0, step=0.05) \
 .bind_value(state, "det_min_confidence") \
+.on("change", lambda _e: store_mask_rcnn_value("min_confidence", state.det_min_confidence)) \
 .bind_enabled_from(state, "det_min_conf_enabled") \
 .classes("w-40") \
 .tooltip("Mask R-CNN papers use 0.7. Lower keeps more (potentially spurious) detections.")
                 ui.label().bind_text_from(state, "det_min_confidence", lambda v: f"{v:.2f}")
+            shared_control_note("confidence", _conf_col)
 
         with ui.column().classes("min-w-[18rem]") \
 .bind_visibility_from(state, "det_mode", value=ORTHO):
             ui.label("Tile overlap (Ortho)").classes("text-sm text-grey-7 font-bold")
             with ui.expansion("Tile overlap explained", icon="info").classes("w-full"):
                 ui.label('Overlap 0: a clast on a tile edge is split and usually missed; 0.20–0.25 shows it whole in one tile at ~1.8× the tiles. See the user manual.').classes("text-sm text-grey-7")
-            with ui.row().classes("items-center gap-2"):
+            with ui.row().classes("items-center gap-2") as _ovl_row:
                 ui.label("Overlap:")
                 ui.slider(min=0.0, max=0.5, step=0.05) \
 .bind_value(state, "det_overlap") \
@@ -5088,16 +5256,19 @@ def build_detection_tab():
 .tooltip("0.20–0.25 catches boundary-crossing clasts. "
                              "Tile count grows as 1/(1-overlap)².")
                 ui.label().bind_text_from(state, "det_overlap", lambda v: f"{v:.2f}")
+            shared_control_note("overlap", _ovl_row)
 
             with ui.expansion("Deduplication IoU explained", icon="info").classes("w-full"):
                 ui.label('With overlap > 0 a clast can appear in 2–4 tiles; detections with IoU ≥ this are merged, keeping the surer one. 0.30 by default, 0 disables.').classes("text-sm text-grey-7")
-            with ui.row().classes("items-center gap-2"):
+            with ui.row().classes("items-center gap-2") as _dedup_row:
                 ui.label("Dedup IoU:")
                 ui.slider(min=0.0, max=1.0, step=0.05) \
 .bind_value(state, "det_dedup_overlap") \
+.on("change", lambda _e: store_mask_rcnn_value("dedup_overlap", state.det_dedup_overlap)) \
 .classes("w-40") \
 .tooltip("Only used when overlap > 0. 0.30 is a sensible default.")
                 ui.label().bind_text_from(state, "det_dedup_overlap", lambda v: f"{v:.2f}")
+            shared_control_note("dedup", _dedup_row)
 
     with ui.expansion("Advanced parameters", icon="settings") \
             .classes("w-full mt-2") as _det_advanced:
@@ -5504,8 +5675,9 @@ def build_detection_tab():
         # The status line and Reload model live in the drawer (Settings).
         try:
             _det_model_caption.set_text(
-                f"Detection model: {current_detection_model()[1]} "
-                "(chosen in the left panel, Settings)")
+                f"Detection model: {current_detection_model()[1]}, "
+                "chosen in the left panel.")
+            _det_settings_refresh()
         except Exception:
             pass
     ui.timer(2.0, _refresh_model_caption)
@@ -5740,6 +5912,12 @@ def build_detection_tab():
                                  if state.det_brightness_filter else None),
             "nodata_max_frac": _num(state.det_nodata_max_frac, 0.95),
             "roi_path": _probe_roi_for(image_path),
+            # The model (release included), the card and the changed values
+            # this job was queued with: it keeps them whatever changes
+            # before it runs (spec 032 US3 scenario 4).
+            "model": _det_run_model(),
+            "devicenumber": int(state.devicenumber or 0),
+            "model_options": model_options_for_run(_det_run_model(), state.det_mode),
         }
 
     def _probe_roi_for(image_path: str) -> Optional[str]:
@@ -5833,6 +6011,12 @@ def build_detection_tab():
                 params += f" ({src})"
         if job["min_confidence"] is not None:
             params += f" conf≥{job['min_confidence']:.2f}"
+        # The model the job keeps, and its changed values (032 US3 sc. 4).
+        if job.get("model") and job["model"] != state.det_model:
+            params += f" · model {job['model']}"
+        n = len(job.get("model_options") or {})
+        if n:
+            params += f" · {n} setting{'s' if n > 1 else ''} changed"
         return params
 
     def _stamp_unit(job, out_dir, log):
@@ -6043,38 +6227,68 @@ def build_detection_tab():
     add_btn.on_click(_add_to_queue)
 
     def _run_after_release_check():
-        """031 US3 scenario 4: when the project already holds results from
-        another release of the selected model, ask once (per project and
-        model) whether to continue with this release or switch back. With
-        nothing to ask, the run starts at once, as it always did."""
+        """Before a run, one question at most (031 US3 scenario 4, 032 FR-021):
+        when the project holds results of the selected model made with
+        another release, or with other settings, ask once per project, model
+        and release, and once per set of values. With nothing to ask, the run
+        starts at once, as it always did."""
+        import json as _json
+        from detectors import settings as _S
         key = _det_run_model()
         other = _other_release_in_project(key) if "@" in key else None
-        asked = (state.current_project, key)
-        if not other or asked in _RELEASE_ASKED:
+        rel_asked = (state.current_project, key)
+        need_release = bool(other) and rel_asked not in _RELEASE_ASKED
+        current = model_options_for_run(key, state.det_mode)
+        set_asked = (state.current_project, _S.model_name(key),
+                     _json.dumps(current, sort_keys=True))
+        others = []
+        if set_asked not in _SETTINGS_ASKED and state.current_project:
+            try:
+                others = [v for v in _S.recorded_value_sets(
+                    project_path(state.current_project), key) if v != current]
+            except Exception:
+                others = []     # the check must never stop a good run
+        if not need_release and not others:
             do_run()
             return
         from nicegui import background_tasks as _bg
         # The dialog is awaited in a task, which keeps the clicked page's
         # slot as NiceGUI's own async handlers do.
-        _bg.create(_ask_release_then_run(context.slot, key, other, asked))
+        _bg.create(_ask_release_then_run(
+            context.slot, key, other if need_release else None, rel_asked,
+            others, current, set_asked))
 
-    async def _ask_release_then_run(slot, key, other, asked):
+    async def _ask_release_then_run(slot, key, other, rel_asked, others=(),
+                                    current=None, set_asked=None):
+        from detectors import settings as _S
         with slot:
-            base, cur = key.split("@", 1)
+            base, cur = (key.split("@", 1) + [""])[:2]
+            name = current_detection_model()[1]
             with ui.dialog() as dlg, ui.card().classes("max-w-md"):
-                ui.label("Another release in this project").classes("text-h6")
-                ui.label(f"Earlier results in this project used release {other}. "
-                         f"Continue with {cur}, or switch back?").classes("text-sm")
+                dlg.on("hide", lambda _e: dlg.delete())     # one question per run, not kept
+                ui.label("Before this run").classes("text-h6")
+                if other:
+                    ui.label(f"Earlier results in this project used release {other} of "
+                             f"{name}; this run uses {cur}.").classes("text-sm")
+                if others:
+                    ui.label(f"Earlier results of {name} in this project were made with "
+                             "other settings: "
+                             + "; ".join(_S.describe_values(v) for v in others)
+                             + f". This run uses {_S.describe_values(current or {})}. "
+                             "Results made with different settings are not comparable.")                         .classes("text-sm pm-other-settings-question")
                 with ui.row().classes("justify-end w-full"):
                     ui.button("Cancel", on_click=lambda: dlg.submit(None)).props("flat no-caps")
-                    ui.button(f"Switch back to {other}",
-                              on_click=lambda: dlg.submit("back")).props("outline no-caps")
-                    ui.button(f"Continue with {cur}",
-                              on_click=lambda: dlg.submit("go")).props("no-caps")
+                    if other:
+                        ui.button(f"Switch back to {other}",
+                                  on_click=lambda: dlg.submit("back")).props("outline no-caps")
+                    ui.button("Continue", on_click=lambda: dlg.submit("go"))                         .props("no-caps").classes("pm-run-continue")
             choice = await dlg
             if choice is None:
                 return
-            _RELEASE_ASKED.add(asked)
+            if other:
+                _RELEASE_ASKED.add(rel_asked)
+            if others and set_asked is not None:
+                _SETTINGS_ASKED.add(set_asked)
             if choice == "back":
                 target = f"{base}@{other}"
                 from detectors import get_backend as _gb_back
@@ -6328,7 +6542,16 @@ def build_detection_tab():
                         with capture_stdout_to_log(log_widget, on_line=_on_log_line):
                             from detectors import get_backend as _get_backend
                             from detectors import run_detect_jobs as _run_jobs
-                            _det_backend = _get_backend(_det_run_model())
+                            # The model the job was queued with (032); a job
+                            # from an older saved queue takes the current one.
+                            _job_model = job.get("model") or _det_run_model()
+                            _det_backend = _get_backend(_job_model)
+                            if _det_backend is None:
+                                raise RuntimeError(
+                                    f"The model this job was queued with "
+                                    f"({_job_model}) is no longer installed. "
+                                    "Remove the job and queue it again with "
+                                    "the model now selected.")
                             # The wrapper settles the row from the return
                             # value when a backend never reports "done".
                             _run_jobs(
@@ -6348,8 +6571,15 @@ def build_detection_tab():
                                 # the job and every run wrote.
                                 saveresults=job.get("saveresults", True),
                                 devicemode=state.devicemode.lower(),
-                                devicenumber=int(state.devicenumber),
+                                devicenumber=int(job.get("devicenumber", state.devicenumber) or 0),
                                 min_confidence=job["min_confidence"],
+                                # The values the job was queued with (032
+                                # US3 scenario 4); a job from an older
+                                # saved queue takes the current ones.
+                                model_options=(job["model_options"]
+                                               if "model_options" in job else
+                                               model_options_for_run(
+                                                   _job_model, _job_mode(job))),
                                 overlap=job["overlap"],
                                 dedup_method="iou",
                                 dedup_overlap=job["dedup_overlap"],
@@ -17678,7 +17908,8 @@ def build_digitize_tab():
                     except Exception:
                         pass    # the check must never stop a good run
                     detect_fn = (_gauge.backend_detect_fn(
-                        backend, work_dir, log_fn=console.push, keep=kept)
+                        backend, work_dir, log_fn=console.push, keep=kept,
+                        model_options=model_options_for_run(model_name, QUADRAT))
                         if backend is not None else _detect_fn)
                     with capture_stdout_to_log(console):
                         try:
@@ -17730,11 +17961,17 @@ def build_digitize_tab():
                         info = None
                     runs = [r for r in state.dig_detect_runs.get(image_key, [])
                             if r.get("display_name") != model_label]
+                    _rec = kept.get("record") or {}
                     runs.append(_prov.model_entry(
                         model_name, info, display_name=model_label,
                         detect_scale=factor, min_confidence=thr,
                         n_proposals=int(n_added),
-                        excluded_by_segments=int(res.get("excluded_by_segments") or 0)))
+                        excluded_by_segments=int(res.get("excluded_by_segments") or 0),
+                        # What the model used, as its record says (032).
+                        **{k: _rec[k] for k in (
+                            "settings_used", "settings_changed", "model_versions",
+                            "device", "image_reduction", "effective_tiles_px",
+                            "weights_sha256", "not_applied") if k in _rec}))
                     state.dig_detect_runs[image_key] = runs
                     _sel.update(idx=None, many=set())
                     _records_changed()
@@ -18399,11 +18636,15 @@ def build_digitize_tab():
     with _dig_settings_row:
         _dig_model_caption = ui.label("").classes(
             "text-xs text-grey-8 pm-model-caption")
+        # Its settings for photographs (spec 032 FR-011).
+        from gui import model_settings_panel as _msp_g
+        _dig_settings_refresh = _msp_g.build_entry(lambda: model_settings_context(QUADRAT))
 
     def _dig_model_text():
         _dig_model_caption.set_text(
-            f"Detection model: {current_detection_model()[1]} "
-            "(left panel, Settings)")
+            f"Detection model: {current_detection_model()[1]}, "
+            "chosen in the left panel.")
+        _dig_settings_refresh()
     _dig_model_text()
     ui.timer(2.0, _dig_model_text)
     image_select.move(dig_toolbar, target_index=0)

@@ -180,8 +180,19 @@ def _stage_detect(project, ortho, window, plan, *, log_fn, progress_cb, stop_che
     log_fn(f"[express]   loading the detection model and tiling the ortho at "
            f"{window:g} m — the first run can take up to a minute to initialise "
            f"(no output appears until the model is ready)…")
-    # Only the backend path accepts log_fn.
-    _extra = {"log_fn": log_fn} if _backend is not None else {}
+    if _backend is not None:                 # what this run is (spec 032 FR-012)
+        try:
+            from detectors.settings import run_header
+            for line in run_header(_backend, modes.ORTHO,
+                                   getattr(plan, "model_options", None) or {},
+                                   plan.devicemode, plan.devicenumber):
+                log_fn(line)
+        except Exception as ex:
+            log_fn(f"[settings] could not describe the run: {ex}")
+    # Only the backend path accepts log_fn and the model's changed values.
+    _extra = ({"log_fn": log_fn,
+               "model_options": dict(getattr(plan, "model_options", None) or {})}
+              if _backend is not None else {})
     origin = naming.origin_stem(Path(ortho).stem, project,
                                 layout.get_active_date())
     _detect(
@@ -275,7 +286,8 @@ def _stage_report(project_root, out, opts, log_fn):
 def run_express_pipeline(project, ortho_path, preset_name, *,
                          windows=None, model="maskrcnn", log_fn=None,
                          progress_cb=None, on_stage=None, stop_check=None,
-                         devicemode="gpu", devicenumber=0) -> ExpressResult:
+                         devicemode="gpu", devicenumber=0,
+                         model_options=None) -> ExpressResult:
     """Run each stage best-effort: on failure mark it 'error' and continue to
     stages whose inputs still exist. ``windows`` overrides the preset's window
     sizes; ``on_stage(name, status)`` is called on every status change."""
@@ -285,6 +297,7 @@ def run_express_pipeline(project, ortho_path, preset_name, *,
     plan = resolve_plan(ortho_path, preset_name, windows=windows, model=model)
     plan.devicemode = devicemode
     plan.devicenumber = devicenumber
+    plan.model_options = dict(model_options or {})     # spec 032: the changed values
     stages = {n: StageStatus(n) for n in
               ("Detection", "Merge", "Rasterize", "Map", "Report")}
     res = ExpressResult(stages=list(stages.values()))

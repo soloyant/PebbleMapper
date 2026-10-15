@@ -1304,7 +1304,7 @@ def write_gauge_table(df: pd.DataFrame, scale: GaugeScale, out_dir, stem: str,
 
 
 def backend_detect_fn(backend, work_dir, *, log_fn=None, keep=None,
-                      timeout=None):
+                      timeout=None, model_options=None):
     """A ``detect_fn`` for :func:`run_gauge` that runs any registered
     detection backend in Quadrat mode on the (possibly resampled)
     photograph, through :func:`detectors.base.run_detect_jobs`, writing its
@@ -1335,6 +1335,7 @@ def backend_detect_fn(backend, work_dir, *, log_fn=None, keep=None,
             kw["log_fn"] = log_fn
         if timeout is not None:
             kw["timeout"] = timeout
+        kw["model_options"] = dict(model_options or {})   # spec 032
         frames = run_detect_jobs(backend, mode, jobs, **kw) or []
         out = []
         for ji, job in enumerate(jobs):
@@ -1363,6 +1364,17 @@ def backend_detect_fn(backend, work_dir, *, log_fn=None, keep=None,
                         keep["shape"] = _sr.read_instances_shape(npz)
                     except Exception:
                         keep["instances"] = None
+                # The run's record (spec 032 FR-016), read before the work
+                # folder goes: Digitize keeps it in its provenance.
+                keep["record"] = {}
+                man = Path(str(csv) + ".manifest.json") if csv is not None else None
+                if man is not None and man.exists():
+                    try:
+                        keep["record"] = json.loads(man.read_text(encoding="utf-8")).get(
+                            "params", {})
+                    except (OSError, ValueError) as ex:
+                        if log_fn is not None:
+                            log_fn(f"[settings] the run's record could not be read: {ex}")
             out.append(df)
         return out
 

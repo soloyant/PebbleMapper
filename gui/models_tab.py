@@ -901,7 +901,26 @@ def build_models_tab(state, on_models_changed: Callable[[], None],
         for b in req.get("entry", {}).get("backends", []):
             if state.det_model == f"{b['name']}@{old}{suffix}":
                 state.det_model = f"{b['name']}@{req['release']}{suffix}"
+            _recheck_settings(f"{b['name']}@{req['release']}{suffix}")
         render_updates.refresh()
+
+    def _recheck_settings(key):
+        """The project's values against the new release's description (032
+        FR-020): a value it no longer accepts falls back, kept in the
+        project, and the user is told which and why."""
+        try:
+            from detectors import get_backend
+            from detectors import settings as S
+            from functions.layout import project_path
+            backend = get_backend(key)
+            desc = S.load_description(backend) if backend is not None else None
+            proj = project_path(state.current_project) if state.current_project else None
+            notices = S.ProjectSettings(S.store_path(proj)).check_against(key, desc)
+        except Exception as ex:
+            print(f"[models] settings re-check after the update failed: {ex}", flush=True)
+            return
+        for n in notices:
+            ui.notify(n, type="warning", multi_line=True, timeout=15000, close_button=True)
 
     with updates_box:
         render_updates()

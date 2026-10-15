@@ -202,6 +202,9 @@ def validate(data) -> None:
                 raise ListError(f"{wr}: notes must link to the maintainer's pages")
             if "replacement" in r and not _SEMVER.match(str(r["replacement"])):
                 raise ListError(f"{wr}: bad replacement")
+            # Spec 032: optional, and ignored by 1.1.0 (it checks named keys only).
+            if "describes_settings" in r and not isinstance(r["describes_settings"], bool):
+                raise ListError(f"{wr}: describes_settings must be true or false")
             variants = _req(r, "variants", wr)
             if not isinstance(variants, dict) or not variants \
                     or set(variants) - {"gpu", "cpu"}:

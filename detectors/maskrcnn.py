@@ -66,8 +66,32 @@ def _read_georef(image_path):
         return None, None
 
 
+_DIGEST = {}
+
+
+def _weights_digest():
+    """``{file name: SHA-256}`` of the weights in use, computed once per
+    file version (350 MB: about a second), for the result's record (032)."""
+    import hashlib
+    for p in _weights_candidates():
+        if not p.exists():
+            continue
+        st = p.stat()
+        key = (str(p), st.st_size, st.st_mtime)
+        if key not in _DIGEST:
+            h = hashlib.sha256()
+            with open(p, "rb") as fh:
+                for block in iter(lambda: fh.read(1 << 22), b""):
+                    h.update(block)
+            _DIGEST[key] = h.hexdigest()
+        return {p.name: _DIGEST[key]}
+    return "weights not found"
+
+
 class MaskRCNNBackend(DetectorBackend):
     info = INFO
+    # Its settings description ships with the application (spec 032 FR-003).
+    settings_file = Path(__file__).with_name("maskrcnn_settings.json")
 
     def is_available(self) -> bool:
         return any(p.exists() for p in _weights_candidates())
@@ -85,13 +109,16 @@ class MaskRCNNBackend(DetectorBackend):
         manifest next to each written CSV (best-effort)."""
         from functions import clasts_detection
         mode = modes.normalise_mode(mode)
-        # log_fn and timeout are meaningful only to subprocess backends.
+        # log_fn and timeout are meaningful only to subprocess backends;
+        # model_options only to the record: Mask R-CNN's two settings arrive
+        # as min_confidence and dedup_overlap (spec 032 research R8).
         fwd = {k: v for k, v in kwargs.items()
-               if k not in ("log_fn", "timeout")}
+               if k not in ("log_fn", "timeout", "model_options")}
         import time as _time
         run_started = _time.time()
         results = clasts_detection.clasts_detect_jobs(mode, jobs, **fwd)
-        self._write_manifests(mode, jobs, fwd, run_started)
+        self._write_manifests(mode, jobs, dict(fwd, model_options=kwargs.get("model_options")),
+                              run_started)
         return results
 
     def _write_manifests(self, mode, jobs, kwargs, run_started):
@@ -110,6 +137,16 @@ class MaskRCNNBackend(DetectorBackend):
             "devicemode", "devicenumber", "dedup_method", "dedup_overlap",
             "dark_threshold", "bright_threshold", "nodata_max_frac")
             if k in kwargs}
+        # Spec 032 FR-016: the settings used, the ones changed, the device.
+        used = {"min_confidence": kwargs.get("min_confidence")}
+        if modes.normalise_mode(mode) == modes.ORTHO:
+            used["dedup_overlap"] = kwargs.get("dedup_overlap")
+        params["settings_used"] = used
+        params["settings_changed"] = dict(kwargs.get("model_options") or {})
+        params["device"] = {"mode": kwargs.get("devicemode"),
+                            "number": kwargs.get("devicenumber")}
+        params["not_applied"] = {}
+        params["weights_sha256"] = _weights_digest()
         for job in jobs:
             try:
                 stem = job.get("out_stem") or Path(job["path"]).stem

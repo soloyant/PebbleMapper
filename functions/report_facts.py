@@ -296,6 +296,61 @@ def _raster_source_stem(r: dict, image_stems: list) -> Optional[str]:
     return rec if rec != name else None
 
 
+def _readable_image(stem: str) -> str:
+    """The image's own name, as Table 2 gives it: :func:`photo_key` without
+    the case folding."""
+    s = naming.image_stem(str(stem))
+    s = re.sub(r"_GSD=[0-9.]+m(?:_per_px)?", "", s)
+    s = re.sub(r"_GSD=[0-9]+p[0-9]+mm", "", s)
+    for suf in _TOOL_SUFFIXES:
+        s = s.replace(suf, "")
+    return s
+
+
+def _detection_models(root: Path) -> list:
+    """``[{model, release, sets: [{values, images}], not_reported: [images]}]``
+    from the ``*.manifest.json`` records under the project; a record from
+    before spec 032 counts as PebbleMapper's values. Never raises."""
+    import json as _json
+    import os as _os
+    groups: dict = {}
+    if not root.is_dir():
+        return []
+    for dirpath, _dirs, files in _os.walk(root):
+        for fn in sorted(files):
+            if not fn.endswith(".manifest.json"):
+                continue
+            try:
+                with open(_os.path.join(dirpath, fn), encoding="utf-8") as fh:
+                    man = _json.load(fh)
+            except (OSError, ValueError):
+                continue
+            model = str(man.get("model") or "").split("@", 1)[0]
+            if not model:
+                continue
+            p = man.get("params") or {}
+            # Only an installed release names one (032); model_version is the
+            # application's or the model's own label, not a release.
+            release = str(p.get("release") or "")
+            g = groups.setdefault((model, release), {"model": model, "release": release,
+                                                     "sets": {}, "not_reported": []})
+            image = fn[:-len(".manifest.json")]
+            image = image[:-4] if image.lower().endswith(".csv") else image
+            image = _readable_image(image)
+            if p.get("settings_used") == "built-in, not reported":
+                g["not_reported"].append(image)
+            values = p.get("settings_changed") or {}
+            if not isinstance(values, dict):
+                values = {}
+            k = _json.dumps(values, sort_keys=True)
+            g["sets"].setdefault(k, {"values": values, "images": []})["images"].append(image)
+    out = []
+    for g in groups.values():
+        g["sets"] = sorted(g["sets"].values(), key=lambda s: (bool(s["values"]), str(s["values"])))
+        out.append(g)
+    return sorted(out, key=lambda g: (g["model"], g["release"]))
+
+
 def gather_facts(inv: dict, stats: dict) -> dict:
     """Everything the report states, derived once from the inventory."""
     from functions import report as R
@@ -469,6 +524,11 @@ def gather_facts(inv: dict, stats: dict) -> dict:
                 params[dst].add(str(p[key]).strip())
     params = {k: sorted(v) for k, v in params.items()}
 
+    # The models that made the project's detections, their releases and the
+    # sets of values that differ from PebbleMapper's (spec 032 FR-018), from
+    # the result records beside the outputs.
+    detection_models = _detection_models(root)
+
     # Validation comparisons, with the flags that decide whether they count.
     validations = []
     for r in inv.get("validation", {}).get("results", []):
@@ -542,6 +602,7 @@ def gather_facts(inv: dict, stats: dict) -> dict:
         "site": site, "date": date, "project_root": root,
         "images": images, "n_ortho": n_ortho, "n_quadrat": n_quadrat,
         "params": params, "validations": validations, "truth_files": truth_files,
+        "detection_models": detection_models,
         "rasters_by_image": rasters_by_image,
         "zonal": inv.get("zonal") or [],
         "profile_figures": inv.get("zonal_profile_figures") or [],

@@ -109,13 +109,47 @@ others.
 | `min_confidence` | Mask R-CNN's detection threshold | no; record it in the manifest and log when not applied |
 | `overlap`, `dedup_method`, `dedup_overlap` | tile overlap fraction and removal of duplicates across tiles | no, when the backend handles tile seams itself |
 | `dark_threshold`, `bright_threshold`, `nodata_max_frac` | ortho tile filter (uniform or nodata tiles skipped) | no |
-| `devicemode` (`"gpu"`/`"cpu"`), `devicenumber` | device | when possible |
+| `devicemode` (`"gpu"`/`"cpu"`), `devicenumber` | device; a subprocess backend's run sees only the chosen card (`CUDA_VISIBLE_DEVICES`), as its first device | when possible |
+| `model_options` | the values the user changed in the model's **Settings**, already checked against its `pm_settings.json` (only described keys, valid values); untouched settings are never sent | read it first when present (2.7) |
 | `roi_path` | GeoJSON polygons, also per job in `jobs[i]["roi_path"]`. For a rectified quadrat photograph whose sidecar records the frame thickness, the wrapper supplies the rectangle inside the frame (`functions.quadrat_frame`), unless the job or the call has an ROI or the caller passes `exclude_frame=False` (Digitize does). | yes; filter centroids with `detectors.measure.load_roi_paths` |
 | `log_fn`, `timeout` | log-line sink; subprocess time limit in seconds | subprocess backends |
 | `stop_check`, `progress_callback` | [2.4](#24-stop), [2.3](#23-progress-events) | yes |
 
-Settings specific to a backend are read from a file or an environment variable and recorded
-in the manifest; the app has no per-backend parameter panel.
+Settings specific to a backend are described in `pm_settings.json` (2.7), changed in the
+model's Settings panel and arrive as `model_options`. Environment variables do not change them:
+PebbleMapper removes `PM_*_OPTIONS` and the setting and device variables before any backend
+loads.
+
+### 2.7 Describing the settings (`pm_settings.json`)
+
+A backend offers its settings by shipping `pm_settings.json` beside its package's
+`__init__.py` (a package with two backends sets the class attribute `settings_file` to one
+file per backend). PebbleMapper reads it as data and builds the panel from it; the format,
+with an example, is `specs/032-model-options/contracts/settings-description.md`. In short:
+
+- `model` is the backend's `info.name`; `shared_controls` lists which of `tile_size`,
+  `overlap`, `device`, `device_number`, `confidence`, `dedup` the backend uses, and `not_used`
+  gives a plain reason for each one it does not (the Detect tab greys it with that reason).
+- each setting has a stable `key`, a `label`, a `help` of one short sentence that says which way
+  to turn it, a `unit` (`px`, `px²`, `mm`, `m`, `%`, `fraction`, `count` or empty), a `kind`
+  (`number` with `min`/`max`/`step`/`integer`, `choice`, `bool`), PebbleMapper's
+  `default` (or `default_by_mode`, or `{"derived": "…"}` when the backend works it out), the
+  `authors`' value with its `source` (value `null` only when the authors recommend nothing; "no
+  minimum" is 0), `differs_because` when the two differ, the `modes` it applies to, `main`
+  (shown first) and optionally `requires` and `cost`. The panel shows the label, the control and
+  the help; the values, the source, the range, the reason and the cost are under the row's
+  details button;
+- `fixed` lists choices that are not settings, with their reasons.
+
+One fault makes PebbleMapper refuse the whole description (it says why in the log) and treat
+the backend as one without settings. `tools/make_plugin_release.py` runs the same check before
+building a release. A setting whose meaning or unit changes gets a new key; a release that
+changes a default is published with `results_may_change`.
+
+`spec_params` reads `kwargs.get("model_options")` first and falls back to its own dictionary
+only when it is absent, so the same release runs under a PebbleMapper that sends nothing
+(1.1) with its built-in values. Only the values the user changed are sent: the backend works
+out every other value itself, exactly as before.
 
 ### 2.6 Ortho mode
 
@@ -299,7 +333,14 @@ the subprocess writes geometry and the driver measures it. Per job the subproces
 | `shape` | `int64`, `(H, W)` | shape of the label image |
 
 `numpy.savez_compressed(path, labels=..., scores=..., shape=...)` writes it; the stub writes
-the same file with the standard library only. In the driver:
+the same file with the standard library only.
+
+A backend that describes its settings also writes `resolved`, a JSON string with every value
+the run used, including the ones it worked out (`settings`), the versions of its main packages
+(`versions`), the device (`device`), any reduction of the image (`reduction`: `factor`,
+`reason`) and its own tiles (`tiles`); see
+`specs/032-model-options/contracts/resolved-values.md`. The driver copies it into the result's
+`.manifest.json`; without it the manifest says "built-in, not reported". In the driver:
 
 ```python
 instances = subprocess_runner.read_instances_npz(npz_path)      # [Instance(mask, score, y0, x0)]
@@ -359,6 +400,7 @@ The stub (`BackendInfo(dev_only=True)`) writes three synthetic ellipses per imag
 - [ ] Ortho mode reads the geotransform and handles tiling and world coordinates.
 - [ ] GPL/AGPL models run as a subprocess in a user-installed environment and are not bundled.
 - [ ] A manifest is written beside every CSV.
+- [ ] The settings that change what the model finds are described in `pm_settings.json`, read from `model_options`, and reported in `resolved`; untouched settings give the results the backend gave before.
 - [ ] The backend is declared in `user_detectors.json` (with `path` if the package is not installed) and sits in a short folder.
 - [ ] Tests replace the subprocess as `tests/test_subprocess_backend.py` does, and skip real round trips when the environment is absent.
 

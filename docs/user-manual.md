@@ -236,6 +236,7 @@ the files of an older project into this layout after previewing every move.
 | **Project**, **Date** | The active project and, for multi-temporal projects, date. Every tab's default paths follow them. |
 | **GPU** / **CPU**, **Device #** | The device the detector runs on. Use CPU without a CUDA-capable GPU or when the GPU runs out of memory. |
 | **Detection model** | The model used by Detect, Express and Digitize. Mask R-CNN is built in; models added from the Models tab (§4.13) appear here as soon as they are installed. |
+| **Settings**, **N settings changed** | The selected model's own settings (§4.14). When any of them is not PebbleMapper's value, "N settings changed" says so here and in the Detect, Express and Digitize run areas; click it to see which. |
 | **Add a model…** | Opens the Models tab, to install another detection model. |
 | **Reload model** | Drops the cached weights and frees GPU memory. Use it after replacing a weights file or after a model error. |
 | **What happened (optional)**, **Build diagnostic bundle** | Writes a zip of versions, configuration, logs and file names (no imagery, no measurements) to `~/.pebblemapper/feedback/`, to attach to an issue. |
@@ -414,7 +415,7 @@ Per-clast measurements from a folder of images.
 | **Image directory**, file list | | Tick the images to process. In the photograph modes each file shows the source of its scale. The crop icon opens the ROI canvas. |
 | **Resolution (m/pixel)** | Quadrat | GSD for files that carry none. |
 | **Tile size (m)** | Ortho | 0.5–20 m. Larger tiles are faster but miss small clasts; typically 1 m for pebbles, 2.5 m for cobbles. Run several sizes and combine them on Merge. |
-| **Filter by confidence**, **Min confidence** | both | Drops detections scoring below the threshold. 0.7 is usual. |
+| **Filter by confidence**, **Min confidence** | both | Drops detections scoring below the threshold. 0.7 is usual. Mask R-CNN only: for a model that gives no confidence the control is greyed with "not used by …" and the reason. |
 | **Overlap** | Ortho | Fraction shared by adjacent tiles, 0–0.5, default 0.20. |
 | **Dedup IoU** | Ortho | Duplicate threshold between overlapping tiles, default 0.30. |
 | **Save plots**, **Save CSV** (Advanced) | both | Quadrat: `<stem>_overlay.png` and `<stem>_histogram.png`. Ortho: one PNG per tile in `figures/tiles/`. |
@@ -422,6 +423,14 @@ Per-clast measurements from a folder of images.
 | **Drop dark / bright tiles before detection** (Advanced) | Ortho | Skips tiles dominated by nodata (0–10), vignetting (15–40) or sky (240–255), using **Dark threshold**, **Bright threshold** and **Max bad-pixel fraction**. Off by default. |
 | **Exclude the quadrat frame** | Quadrat, Object scale | On by default; see below. |
 | **ROI per image (optional)** | both | Shapes drawn on an image, saved to `<image_stem>_roi.geojson` in `input_data/geometries/`. Ortho: tiles centred outside are skipped. Quadrat: clasts centred outside are dropped. |
+
+**Controls a model does not use.** Tile size, Overlap, Dedup IoU, the confidence filter and,
+in the left panel, GPU/CPU and Device # are greyed with "not used by *model*: *reason*" when the
+selected model ignores them (most other models tile the image themselves).
+
+**What every run's log begins with.** The model and its release, the device (the graphics
+card's name, or the processor), and the settings that are not PebbleMapper's values, or
+"Settings: PebbleMapper's values".
 
 **Tile overlap.** At overlap 0 a clast crossing a tile boundary is cut in two and, because
 the model skips cropped objects, usually missed in both tiles. At 0.20–0.25 most boundary
@@ -750,6 +759,41 @@ runs, every other tab stays usable, the header shows its progress, the computer 
 and the console window's title warns that closing it pauses the install. On battery below
 15 % it pauses until the computer is plugged in. Once installed, the model is in the
 **Detection model** list at once, and every result records the model's name and release.
+
+
+### 4.14 Model settings
+
+Each detection model has its own settings: a threshold, a minimum grain size, whether the
+grains cut by the image edge are kept. **Settings**, beside the Detection model in the left
+panel (or in the Detect, Express and Digitize run areas), opens them for the selected model and
+the current mode (Quadrat or Ortho; the two keep separate values).
+
+For each setting the panel gives, in one sentence, what it changes and which way to turn it,
+and its value with its unit. "differs from the authors" marks the settings where PebbleMapper
+chose another value than **the model's authors** recommend, and their value is shown below.
+The **ⓘ** button of a setting shows the rest: PebbleMapper's value, the authors' value with
+where it comes from, the allowed range, and why PebbleMapper differs. **More settings** holds
+the rarely changed ones; **Fixed by PebbleMapper** lists the choices that are not settings (for
+example OrthoSAM's model size), with their reasons. A value outside its range is refused and
+the range is shown. A changed setting is marked "changed" and gets a reset button (↺) that
+returns it to PebbleMapper's value; **Reset all to PebbleMapper's values** returns all of them.
+
+The values you change are saved with the project (`.model_settings.json` in the project
+folder) and apply to every later run of that model in the project: Detect, Express and
+Digitize. A queued job keeps the values it was queued with. Changing a value in a project that
+already holds results of the model says that later results will not be comparable with them,
+and the first run with other values asks once before going on.
+
+Every result records the values the model actually used (including the ones it works out
+itself), the model's release and software versions, the device and the weights' checksum, in
+its `.manifest.json`; the project report's Method section lists, per model, the values that
+differ from PebbleMapper's and the images they made.
+
+Mask R-CNN's two settings, the confidence threshold and Dedup IoU, are also on the Detect tab:
+both places show the same value. A model release from before PebbleMapper 1.2 does not
+describe its settings: the panel says so and names the newer release that does, to install
+from the Models tab. Environment variables (`PM_*_OPTIONS` and the like) no longer change any
+model's settings; the log says so when one is set.
 
 ---
 
