@@ -387,6 +387,7 @@ from nicegui import ui, app, context  # noqa: E402
 from gui.components.job_queue import render_queue  # noqa: E402
 from gui.components.log_console import build_log_console  # noqa: E402,F401
 from gui.components.progress import build_progress  # noqa: E402,F401
+from gui import models_tab as _models_tab  # noqa: E402  (spec 030)
 from gui.components.styles import (  # noqa: E402,F401
     PANEL_BG, PANEL_BORDER, PANEL_TEXT, PANEL_MUTED, PANEL_MUTED_2)
 
@@ -2625,6 +2626,14 @@ def _serve_raster(name: str):                  # noqa: ANN202  (FastAPI route)
                              "public, max-age=31536000, immutable"})
 
 
+@app.get("/pm-health")
+def _serve_health():                           # noqa: ANN202  (FastAPI route)
+    """The starter's sign that this version came up (031 FR-014): answers as
+    soon as the server runs, builds no page."""
+    from functions import __version__ as _v
+    return {"version": _v, "pid": os.getpid()}
+
+
 def _raster_url(png_bytes: bytes) -> str:
     """Publish PNG bytes at a content-addressed URL and return it."""
     import hashlib
@@ -3982,6 +3991,9 @@ def render_stop_button():
         ui.label("The server stops and this page goes blank. A detection that "
                  "is running is interrupted; queued jobs are saved and offered "
                  "back at the next start.").classes("text-sm text-grey-7")
+        install_note = ui.label("The model install will be paused and can be "
+                                "resumed from the Models tab.") \
+            .classes("text-sm text-warning pm-stop-install-note")
 
         def _stop():
             from nicegui import app as _ng_app
@@ -3991,8 +4003,77 @@ def render_stop_button():
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancel", on_click=dlg.close).props("flat no-caps")
             ui.button("Stop", icon="power_settings_new", on_click=_stop)                 .props("color=negative no-caps").classes("pm-stop-confirm")
-    ui.button("Stop PebbleMapper", icon="power_settings_new", on_click=dlg.open)         .props("outline dense no-caps color=negative").classes("pm-stop-button")         .tooltip("Shut the server down cleanly. Closing the console window or "
+    def _open():
+        try:
+            from installer import jobs as _jobs
+            running = _jobs.worker_alive()
+        except Exception:
+            running = False
+        install_note.set_visibility(running)
+        dlg.open()
+    ui.button("Stop PebbleMapper", icon="power_settings_new", on_click=_open)         .props("outline dense no-caps color=negative").classes("pm-stop-button")         .tooltip("Shut the server down cleanly. Closing the console window or "
                  "Ctrl+C there does the same; none of them counts as a crash.")
+
+
+# Per-client refreshers of the drawer's Detection model select (030 FR-035).
+_MODEL_SELECTS: list = []
+
+
+# (project, model key) pairs already asked about in this run of the app.
+_RELEASE_ASKED: set = set()
+
+
+def other_release_in_folder(folder, key: str):
+    """Another release of ``key``'s model (``name@release``) whose results are
+    in ``folder``, read from output names (``_model=<name>-<release>``), or
+    None. The newest such release when there are several."""
+    from functions import naming
+    if "@" not in str(key) or not folder or not os.path.isdir(folder):
+        return None
+    base, cur = key.split("@", 1)
+    prefix = naming.label_set_id(base) + "-"
+    mine = naming.label_set_id(key)
+    found = set()
+    for root, _dirs, files in os.walk(folder):
+        for fn in files:
+            if not fn.endswith(".csv"):
+                continue
+            tok = naming.model_of(os.path.splitext(fn)[0])
+            if tok.startswith(prefix) and tok != mine:
+                found.add(tok[len(prefix):])
+    rels = []
+    for t in found:
+        parts = t.replace("-cpu", "").split("-")
+        if all(p.isdigit() for p in parts):
+            rels.append(".".join(parts))
+    if not rels:
+        return None
+    return max(rels, key=lambda r: tuple(int(x) for x in r.split(".")))
+
+
+def _other_release_in_project(key: str):
+    if not state.current_project:
+        return None
+    try:
+        return other_release_in_folder(project_path(state.current_project), key)
+    except Exception:
+        return None             # the check must never stop a good run
+
+
+def refresh_model_selects() -> None:
+    """Re-read the registry into every open page's Detection model select;
+    pages that have gone away are dropped."""
+    alive = []
+    for client, fn in list(_MODEL_SELECTS):
+        if getattr(client, "has_socket_connection", True) is False:
+            continue
+        try:
+            with on_page(client):
+                fn()
+            alive.append((client, fn))
+        except Exception as ex:
+            print(f"[models] select refresh skipped: {ex}")
+    _MODEL_SELECTS[:] = alive
 
 
 def render_detection_settings():
@@ -4018,9 +4099,37 @@ def render_detection_settings():
                     on_change=_on_model) \
         .classes("w-full pm-det-model-select").props("dense") \
         .tooltip("The detection model every run uses: Detect, Express and "
-                 "Digitize's Detect. Mask R-CNN is built in; more models are "
-                 "added as plug-ins (docs/developer/adding-a-detection-model.md).")
+                 "Digitize's Detect. Mask R-CNN is built in; add more models "
+                 "from the Models tab.")
     hint.move(target_index=sel.parent_slot.children.index(sel) + 1)
+
+    def _open_models_tab():
+        state.active_tab = "Models"
+    ui.button("Add a model…", icon="add", on_click=_open_models_tab) \
+        .classes("pm-add-model").props("flat dense no-caps") \
+        .tooltip("Install another detection model from the Models tab.")
+
+    def _refresh_options():
+        """After an install or removal: new options, same choice if still
+        offered, else Mask R-CNN (030 FR-035, FR-041). ``opts`` is updated
+        in place so _on_model sees the new set."""
+        new = detection_model_options()
+        opts.clear()
+        opts.update(new)
+        keep = state.det_model if state.det_model in new else next(iter(new))
+        state.det_model = keep
+        sel.set_options(dict(new), value=keep)
+        hint.set_text(_model_hint(keep))
+        _refresh_status()
+    _MODEL_SELECTS.append((context.client, _refresh_options))
+
+    from installer import updates as _updates
+    ui.switch("Check for updates automatically", value=_updates.checks_enabled(),
+              on_change=lambda e: _updates.set_checks_enabled(bool(e.value))) \
+        .props("dense").classes("pm-update-checks") \
+        .tooltip("At most once a day, PebbleMapper checks whether a newer release "
+                 "of the app or of an installed model exists. It sends nothing "
+                 "about you or your data. Off: it contacts nothing on its own.")
 
     def _refresh_status():
         try:
@@ -4362,6 +4471,8 @@ def build_overview_tab():
         if icon_path.exists():
             ui.image("/static_icon/icon.svg").style("width: 56px; height: 56px;")
         ui.label(_brand.APP_NAME).classes("text-h4")
+        from functions import __version__ as _app_version
+        ui.label(f"version {_app_version}").classes("text-subtitle1 text-grey-7")
     ui.markdown(f"**{_brand.APP_TAGLINE}.**").classes("text-subtitle1")
     ui.markdown(
         "*Model: Soloy et al. (2020). Licence and citation: see the README.*"
@@ -5931,6 +6042,50 @@ def build_detection_tab():
 
     add_btn.on_click(_add_to_queue)
 
+    def _run_after_release_check():
+        """031 US3 scenario 4: when the project already holds results from
+        another release of the selected model, ask once (per project and
+        model) whether to continue with this release or switch back. With
+        nothing to ask, the run starts at once, as it always did."""
+        key = _det_run_model()
+        other = _other_release_in_project(key) if "@" in key else None
+        asked = (state.current_project, key)
+        if not other or asked in _RELEASE_ASKED:
+            do_run()
+            return
+        from nicegui import background_tasks as _bg
+        # The dialog is awaited in a task, which keeps the clicked page's
+        # slot as NiceGUI's own async handlers do.
+        _bg.create(_ask_release_then_run(context.slot, key, other, asked))
+
+    async def _ask_release_then_run(slot, key, other, asked):
+        with slot:
+            base, cur = key.split("@", 1)
+            with ui.dialog() as dlg, ui.card().classes("max-w-md"):
+                ui.label("Another release in this project").classes("text-h6")
+                ui.label(f"Earlier results in this project used release {other}. "
+                         f"Continue with {cur}, or switch back?").classes("text-sm")
+                with ui.row().classes("justify-end w-full"):
+                    ui.button("Cancel", on_click=lambda: dlg.submit(None)).props("flat no-caps")
+                    ui.button(f"Switch back to {other}",
+                              on_click=lambda: dlg.submit("back")).props("outline no-caps")
+                    ui.button(f"Continue with {cur}",
+                              on_click=lambda: dlg.submit("go")).props("no-caps")
+            choice = await dlg
+            if choice is None:
+                return
+            _RELEASE_ASKED.add(asked)
+            if choice == "back":
+                target = f"{base}@{other}"
+                from detectors import get_backend as _gb_back
+                if _gb_back(target) is None:
+                    ui.notify(f"Release {other} is no longer installed; install it from "
+                              "the Models tab to switch back.", type="warning")
+                    return
+                state.det_model = target
+                refresh_model_selects()
+            do_run()
+
     def do_run():
         if not state.det_jobs:
             ui.notify("The queue is empty — press *Add to queue* (above) first.",
@@ -6310,7 +6465,7 @@ def build_detection_tab():
         _disable(stop_current_btn, "Halt requested — waits for the current tile")
         _disable(stop_all_btn, "Halt requested — waits for the current tile")
 
-    run_btn.on_click(do_run)
+    run_btn.on_click(_run_after_release_check)
     stop_current_btn.on_click(do_stop_current)
     stop_all_btn.on_click(do_stop_all)
 
@@ -20551,6 +20706,11 @@ if os.environ.get("PEBBLEMAPPER_ENABLE_TEST_FAULTS") == "1":
         ui.label(_crashsafe.induce_test_fault(kind))
 
 
+def _open_models_tab():
+    """Header indicator, notice line and Add a model… all open the Models tab."""
+    state.active_tab = "Models"
+
+
 @ui.page("/")
 def index():
     icon_path = Path(__file__).parent / "icon.svg"
@@ -20561,9 +20721,17 @@ def index():
         if icon_path.exists():
             ui.image(icon_url).style("width: 36px; height: 36px;")
         ui.label(_brand.APP_NAME).classes("text-h6 text-white")
+        # The running version, always in sight (a 1.0.x copy could not say
+        # whether it was out of date; from 1.1 the Models tab checks).
+        from functions import __version__ as _app_version
+        ui.label(f"version {_app_version}").classes("text-caption text-white pm-app-version") \
+            .style("opacity: 0.85; margin-left: 4px;") \
+            .tooltip("The PebbleMapper version running. Newer versions are announced "
+                     "here and on the Models tab.")
         ui.space()
         ui.label(_brand.APP_TAGLINE) \
 .classes("text-caption text-white")
+        _models_tab.build_header_indicator(_open_models_tab)
 
     # ---- Sidebar (left drawer) ----
     with ui.left_drawer().classes("bg-grey-2"):
@@ -20603,6 +20771,12 @@ def index():
         ui.separator()
         render_stop_button()
 
+    # ---- Notice line: interrupted installs, test model list (030) ----
+    _models_tab.build_notice_line(_open_models_tab)
+    _models_tab.build_switch_banner()             # 031: after a version switch
+    _models_tab.build_update_notice(_open_models_tab)
+    _models_tab.ensure_background_check()        # 031: at most daily, silent
+
     # ---- Tabs ----
     # Tabs and panels are both bound to state.active_tab; the value is also
     # set at construction, or the first render starts blank.
@@ -20619,6 +20793,7 @@ def index():
         ui.tab("Digitize", icon="edit")
         ui.tab("Validate", icon="fact_check")
         ui.tab("Report", icon="description")
+        ui.tab("Models", icon="extension")
     tabs.set_value(state.active_tab)
     # Opening a tab re-seeds it: see register_tab_refresh.
     tabs.on_value_change(lambda e: _fire_tab_hooks(getattr(e, "value", "")))
@@ -20652,6 +20827,9 @@ def index():
             build_validate_tab()
         with ui.tab_panel("Report"):
             build_report_tab()
+        with ui.tab_panel("Models"):
+            _models_tab.build_models_tab(state, refresh_model_selects,
+                                         register_tab_refresh)
 
     # ---- Announce an unclean previous exit, once per boot ----
     # A closed console window, a killed process or a power cut leave an
@@ -20883,3 +21061,9 @@ if __name__ in ("__main__", "__mp_main__"):
         # binding_refresh_interval stays at its 0.1 s default: a cycle costs
         # a few ms, and a drop needs a contiguous stall of seconds.
     )
+    # Restart now (031 FR-011): the server has stopped cleanly; the exit code
+    # asks the starter to apply the prepared update and start again.
+    from installer import appupdate as _appupdate
+    if _appupdate.RESTART["requested"]:
+        sys.stdout.flush()
+        os._exit(_appupdate.RESTART_CODE)

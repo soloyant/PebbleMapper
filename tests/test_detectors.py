@@ -191,3 +191,100 @@ def test_maskrcnn_backend_normalises_the_mode_before_forwarding(monkeypatch, tmp
                       output_dir=str(tmp_path))
     assert captured == [modes.ORTHO, modes.ORTHO, modes.ORTHO,
                         modes.QUADRAT, modes.QUADRAT, modes.QUADRAT]
+
+
+# --------------------------------------------------------------------------- #
+#  030: models installed by the app, one release beside another               #
+# --------------------------------------------------------------------------- #
+_INSTALLED_BACKEND = (
+    "from detectors.base import BackendInfo, DetectorBackend\n"
+    "from . import helper\n"
+    "\n"
+    "class Installed(DetectorBackend):\n"
+    "    info = BackendInfo(name='grains', display_name='Grains model',\n"
+    "                       framework='pytorch', license='MIT')\n"
+    "    def __init__(self, ctx):\n"
+    "        self.ctx = ctx\n"
+    "        self.model_version = ctx.release + ' (' + helper.TAG + ')'\n"
+    "    def is_available(self):\n"
+    "        return True\n"
+    "    def detect_jobs(self, mode, jobs, **kwargs):\n"
+    "        return []\n"
+    "\n"
+    "def make_backend(ctx=None):\n"
+    "    return Installed(ctx)\n")
+
+
+def _installed_release(root, release, tag, body=_INSTALLED_BACKEND):
+    code = root / f"grains-{release.replace('.', '')}-g" / "code"
+    pkg = code / "pm_grains_backend"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "helper.py").write_text(f"TAG = {tag!r}\n", encoding="utf-8")
+    (pkg / "backend.py").write_text(body, encoding="utf-8")
+    return {"id": "grains", "release": release, "variant": "gpu",
+            "root": str(code.parent), "env": str(code.parent / "env"),
+            "code": str(code), "weights": str(code.parent / "weights"),
+            "backends": [{"name": "grains", "package": "pm_grains_backend",
+                          "module": "backend", "factory": "make_backend"}],
+            "state": "ok", "by": "app"}
+
+
+def test_two_releases_of_one_model_load_side_by_side(tmp_path, monkeypatch):
+    import sys
+    from detectors import registry
+    from installer import registration
+
+    monkeypatch.setenv("PEBBLEMAPPER_HOME", str(tmp_path / "home"))
+    path_before = list(sys.path)
+    registration.register(_installed_release(tmp_path, "1.0.0", "old"))
+    registration.register(_installed_release(tmp_path, "1.1.0", "new"))
+    try:
+        added = registry.reload_installed_backends()
+        assert sorted(added) == ["grains@1.0.0", "grains@1.1.0"]
+        old, new = registry.get_backend("grains@1.0.0"), registry.get_backend("grains@1.1.0")
+        # Each release runs its own code: the helper module was not shared.
+        assert old.model_version == "1.0.0 (old)"
+        assert new.model_version == "1.1.0 (new)"
+        assert old.ctx.env_prefix.name == "env"
+        assert sys.path == path_before, "isolated loading must not touch sys.path"
+        assert "pm_grains_backend" not in sys.modules
+        opts = registry.selector_options()
+        assert opts["grains@1.0.0"] == "Grains model (release 1.0.0)"
+        assert opts["grains@1.1.0"] == "Grains model (release 1.1.0)"
+        # Removing one release leaves the other, and the label goes back to plain.
+        registration.unregister("grains", "1.0.0", "gpu")
+        registry.reload_installed_backends()
+        assert registry.get_backend("grains@1.0.0") is None
+        assert registry.selector_options()["grains@1.1.0"] == "Grains model"
+    finally:
+        for k in registry.installed_keys():
+            registry._BACKENDS.pop(k, None)
+
+
+def test_an_absolute_self_import_is_refused_with_a_reason(tmp_path, monkeypatch, caplog):
+    from detectors import registry
+    from installer import registration
+
+    monkeypatch.setenv("PEBBLEMAPPER_HOME", str(tmp_path / "home"))
+    body = _INSTALLED_BACKEND.replace("from . import helper",
+                                      "from pm_grains_backend import helper")
+    registration.register(_installed_release(tmp_path, "2.0.0", "abs", body))
+    try:
+        with caplog.at_level("WARNING", logger="csm.detectors"):
+            assert registry.reload_installed_backends() == []
+        assert "relative imports" in caplog.text
+    finally:
+        for k in registry.installed_keys():
+            registry._BACKENDS.pop(k, None)
+
+
+def test_registration_never_writes_user_detectors_json(tmp_path, monkeypatch):
+    from installer import registration
+    decl = tmp_path / "user_detectors.json"
+    decl.write_text("[]", encoding="utf-8")
+    monkeypatch.setenv("PEBBLEMAPPER_DETECTORS", str(decl))
+    monkeypatch.setenv("PEBBLEMAPPER_HOME", str(tmp_path / "home"))
+    registration.register(_installed_release(tmp_path, "1.0.0", "x"))
+    assert decl.read_text(encoding="utf-8") == "[]"
+    assert (tmp_path / "home" / "models" / "installed.json").is_file()

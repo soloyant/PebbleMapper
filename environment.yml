@@ -1,6 +1,7 @@
 name: maskrcnn
 channels:
   - conda-forge
+  - nodefaults        # never Anaconda's own channel, even where conda is configured with it
 dependencies:
   # --- Python runtime ---
   - python=3.9

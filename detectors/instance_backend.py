@@ -32,6 +32,18 @@ from detectors.base import (CANONICAL_COLUMNS, DetectionManifest,
 from detectors import subprocess_runner
 
 
+# Environments with a detection running in this process, and how many.
+_IN_USE: dict = {}
+_IN_USE_LOCK = threading.Lock()
+
+
+def environments_in_use() -> set:
+    """The environments (names or folders, as strings) a detection is using
+    right now."""
+    with _IN_USE_LOCK:
+        return set(_IN_USE)
+
+
 class InstanceSubprocessBackend(DetectorBackend):
     """Base class: a model in its own environment that writes a label image.
 
@@ -41,7 +53,12 @@ class InstanceSubprocessBackend(DetectorBackend):
     """
 
     info = None                      # BackendInfo
-    env_name = ""                    # conda environment the script runs in
+    # The conda environment the script runs in: a name, or -- for a model the
+    # app installed (030 FR-009) -- the environment's folder as a Path.
+    env_name = ""
+    # "cpu" for a model installed in its processor version: it runs on the
+    # CPU whatever the drawer's GPU/CPU toggle says (030 edge case).
+    variant = "gpu"
     required_modules: tuple = ()     # what that env must hold to be complete
     script: Optional[Path] = None    # the subprocess entry point
     model_version = ""               # what the manifest records
@@ -71,6 +88,20 @@ class InstanceSubprocessBackend(DetectorBackend):
 
     # ------------------------------------------------------------------- run
     def detect_jobs(self, mode: str, jobs: list, **kwargs) -> List:
+        """Run ``jobs``; while it runs, :func:`environments_in_use` names this
+        backend's environment, so an uninstall waits for it (030 FR-041)."""
+        key = str(self.env_name)
+        with _IN_USE_LOCK:
+            _IN_USE[key] = _IN_USE.get(key, 0) + 1
+        try:
+            return self._detect_jobs(mode, jobs, **kwargs)
+        finally:
+            with _IN_USE_LOCK:
+                _IN_USE[key] -= 1
+                if not _IN_USE[key]:
+                    del _IN_USE[key]
+
+    def _detect_jobs(self, mode: str, jobs: list, **kwargs) -> List:
         import pandas as pd
         from functions import modes, naming
 
@@ -121,6 +152,8 @@ class InstanceSubprocessBackend(DetectorBackend):
         params = {k: kwargs[k] for k in (
             "resolution", "metric_cropsize", "overlap", "min_confidence",
             "devicemode") if k in kwargs}
+        if self.variant == "cpu":
+            params["devicemode"] = "CPU"
         params["resolution"] = resolution
         params.update(self.spec_params(mode, kwargs, resolution))
         spec = {"mode": mode, "params": params,
@@ -187,11 +220,18 @@ class InstanceSubprocessBackend(DetectorBackend):
             json.dump(spec, fh)
         cmd = subprocess_runner.build_command(self.env_name, self.script,
                                               spec_path, conda_exe)
-        log_fn(f"[subprocess] {self.env_name}: {Path(self.script).name} "
+        env_label = (Path(self.env_name).parent.name
+                     if subprocess_runner.is_prefix_env(self.env_name)
+                     else self.env_name)
+        log_fn(f"[subprocess] {env_label}: {Path(self.script).name} "
                f"({len(spec['jobs'])} job(s))")
         tail: List[str] = []
         try:
             env = dict(os.environ, TQDM_DISABLE="1", PYTHONIOENCODING="utf-8")
+            if subprocess_runner.is_prefix_env(self.env_name):
+                # A model the app installed runs only what its lock installed,
+                # never a package from ~\AppData\Roaming\Python (030 FR-007).
+                env["PYTHONNOUSERSITE"] = "1"
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True,
                                     encoding="utf-8", errors="replace",

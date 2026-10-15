@@ -708,13 +708,13 @@ def test_detect_with_an_object_scale_writes_the_unit_and_the_disclaimer(
 # --------------------------------------------------------------------------- #
 #  Twelve tabs, none of them Gauge                                             #
 # --------------------------------------------------------------------------- #
-def test_twelve_tabs_and_no_gauge_tab(src):
+def test_the_tabs_and_no_gauge_tab(src):
     strip = src[src.index('ui.tab("Overview", icon="home")'):]
     strip = strip[:strip.index("with ui.tab_panels")]
     tabs = re.findall(r'ui\.tab\("([A-Za-z]+)"', strip)
     assert tabs == ["Overview", "Express", "Orthorectify", "Detect", "Merge",
                     "Rasterize", "Map", "Zonal", "Georeference", "Digitize",
-                    "Validate", "Report"]
+                    "Validate", "Report", "Models"]   # Models: spec 030
     assert '"Gauge"' not in src and "build_gauge_tab" not in src
     assert "gauge_canvas" not in src and "gauge_library" not in src
     lines = src[src.index("_TAB_LINES = ["):]

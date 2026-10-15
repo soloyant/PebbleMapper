@@ -94,3 +94,13 @@ def test_a_nonsense_port_falls_back_rather_than_refusing_to_start(monkeypatch):
     for bad in ("", "   ", "abc", "0", "-1", "70000", "80.80"):
         monkeypatch.setenv("PEBBLEMAPPER_PORT", bad)
         assert _listen_port() == DEFAULT_PORT, f"{bad!r} was accepted"
+
+
+def test_the_health_route_answers_with_the_version():
+    """031 FR-014: the starter's sign that a version came up."""
+    mod = importlib.import_module("gui.app")
+    from functions import __version__
+    out = mod._serve_health()
+    assert out["version"] == __version__ and isinstance(out["pid"], int)
+    paths = {getattr(r, "path", "") for r in mod.app.routes}
+    assert "/pm-health" in paths

@@ -15,6 +15,14 @@
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg" alt="Windows 10 and 11"/>
 </p>
 
+> [!IMPORTANT]
+> **Installed PebbleMapper 1.0.0? A newer version exists and must be installed once by hand.**
+> Version 1.0.0 cannot tell you about newer versions or update itself; from version 1.1 on,
+> PebbleMapper checks for updates and installs them from the app. Moving from 1.0.0 takes
+> about ten minutes and keeps your projects, results and weights where they are:
+> **[Updating from PebbleMapper 1.0.0](docs/updating-from-1.0.md)**. Not sure which version you
+> have? From 1.1 on, it is written in the top bar after the name; nothing there means 1.0.0.
+
 PebbleMapper detects individual rounded clasts (pebbles, cobbles) in images of known
 scale, measures each one, and turns the measurements into grain-size distributions, maps,
 zonal statistics and a PDF report. It works clast by clast, so every statistic can be traced
@@ -103,14 +111,18 @@ PebbleMapper runs on Windows 10 and 11 (64-bit). You need about 10 GB of free di
 and an internet connection during the installation. An NVIDIA graphics card makes
 detection faster but is not required.
 
-1. On this page, click the green **Code** button, then **Download ZIP**.
+1. Open the [Releases page](https://github.com/soloyant/PebbleMapper/releases). Under the
+   newest release, open **Assets** and click `pebblemapper-<version>.zip` (about 90 MB).
+   Take this file rather than the green **Code → Download ZIP** button: only the release file
+   lets PebbleMapper update itself later.
 2. Create a folder with a short path that is not synchronised by OneDrive or Dropbox, for
-   example `C:\PebbleMapper`. In your Downloads folder, right-click `pebblemapper-main.zip`,
-   choose **Extract All…**, select that folder and click **Extract**. PebbleMapper runs from
-   it, so keep it.
-3. In the extracted folder, open `pebblemapper-main` until you see the file
-   **Install PebbleMapper**, and double-click it. If Windows asks for confirmation, click
-   **Run**, or **More info** then **Run anyway**.
+   example `C:\PebbleMapper`. In your Downloads folder, right-click the file, choose
+   **Extract All…**, select that folder and click **Extract**. PebbleMapper runs from it, so
+   keep it.
+3. In that folder, double-click **Install PebbleMapper**. If Windows asks for confirmation,
+   click **Run**, or **More info** then **Run anyway**. If PebbleMapper 1.0.0 is already
+   installed, the installer offers to update it in place instead
+   ([details](docs/updating-from-1.0.md)).
 4. A black window shows the progress. The installation takes 20 to 60 minutes. It
    installs Python (through Miniforge) if your computer has none, downloads the model (once it is public, see below),
    and ends with *PebbleMapper is installed*. Press a key to close the window.
@@ -125,7 +137,8 @@ detection faster but is not required.
 > folder.
 
 If the installation stops with an error, double-click **Install PebbleMapper** again. It
-continues where it stopped. To uninstall, delete the `pebblemapper-main` folder, the
+continues where it stopped. Newer versions are announced in the app and installed from its
+**Models** tab (user manual §2.6). To uninstall, delete the PebbleMapper folder, the
 `miniforge3` folder in your user folder (only if the installer created it) and the desktop
 icon.
 

@@ -20,7 +20,7 @@ PebbleMapper works on two kinds of imagery:
 | **Quadrat** | A photograph of known ground sample distance (GSD, metres per pixel), usually a rectified photograph of a quadrat frame | Processed whole; sizes are pixels × GSD. |
 
 The built-in detection model is Mask R-CNN (Soloy et al., 2020), which outlines each visible
-clast. Other models can be installed as plug-ins. From each outline PebbleMapper measures
+clast. Five other models can be added in one click from the Models tab (§4.13). From each outline PebbleMapper measures
 length and width, best-fit ellipse axes, area, perimeter, equivalent diameter, eccentricity,
 solidity, mean intensity, detection score and orientation.
 
@@ -68,10 +68,12 @@ no PATH variable.
 
 **Step 1: download PebbleMapper**
 
-1. Open <https://github.com/soloyant/pebblemapper> in a web browser. GitHub is the website
-   that hosts PebbleMapper's files; no account is needed to download them.
-2. Click the green **Code** button above the list of files, then **Download ZIP**. The browser
-   saves `pebblemapper-main.zip` (about 80 MB) in the Downloads folder.
+1. Open <https://github.com/soloyant/PebbleMapper/releases> in a web browser. GitHub is the
+   website that hosts PebbleMapper's files; no account is needed to download them.
+2. Under the newest release, open **Assets** and click `pebblemapper-<version>.zip`
+   (for example `pebblemapper-1.1.0.zip`, about 90 MB). The browser saves it in the Downloads
+   folder. Take this file, not GitHub's green **Code → Download ZIP** button: only the release
+   file lets PebbleMapper update itself later (§2.6).
 
 **Step 2: extract it to a permanent folder**
 
@@ -81,11 +83,11 @@ path to 260 characters. `C:\PebbleMapper` is a good choice. Avoid folders synchr
 OneDrive, Dropbox or similar, which can lock files while PebbleMapper writes them.
 
 1. In File Explorer, create the folder, for example `C:\PebbleMapper`.
-2. In the Downloads folder, right-click `pebblemapper-main.zip` and choose **Extract All…**.
+2. In the Downloads folder, right-click `pebblemapper-<version>.zip` and choose **Extract All…**.
 3. Click **Browse…**, select the folder created in 1, and click **Extract**.
-4. Open the extracted folder, then the `pebblemapper-main` folder inside it. It holds, among
-   others, `Install PebbleMapper`, `README`, `datasets`, `gui` and `functions`. This is the
-   **PebbleMapper folder** referred to in the rest of this manual.
+4. Open the folder. It holds, among others, `Install PebbleMapper`, `README`, `datasets`,
+   `gui` and `functions`. This is the **PebbleMapper folder** referred to in the rest of this
+   manual.
 
 **Step 3: run the installer**
 
@@ -95,6 +97,10 @@ OneDrive, Dropbox or similar, which can lock files while PebbleMapper writes the
    - *Windows protected your PC* (blue window): click **More info**, then **Run anyway**.
    - *Open File – Security Warning*: click **Run**.
 3. A black window opens and shows each step:
+   - `PebbleMapper is already installed in …` (only when an earlier PebbleMapper is on the
+     desktop): press **Enter** to update that installation, keeping its projects, results and
+     weights where they are, or type **n** to install separately in this folder. See
+     *Coming from PebbleMapper 1.0* below;
    - `conda was not found: installing Miniforge` (only if no conda is installed);
    - `GPU: ...` or `no NVIDIA GPU found`;
    - `building the 'maskrcnn' environment`: the longest step, 10 to 60 minutes depending on
@@ -173,6 +179,9 @@ environment), `-SkipWeights`, `-Force` (rebuild the environment), `-NoShortcut` 
 | `PEBBLEMAPPER_HOME` | Settings folder (default `~/.pebblemapper`: `config.json`, feedback bundles, logs). |
 | `PEBBLEMAPPER_DATASETS_ROOT` | Overrides the saved datasets root. |
 
+The installer sets up Mask R-CNN. Other detection models are added afterwards, from inside the
+application: open the **Models** tab (§4.13) and click **Install**.
+
 ### 2.2 The datasets root and projects
 
 All projects live under one folder, the **datasets root**, by default `datasets/` in the
@@ -226,9 +235,11 @@ the files of an older project into this layout after previewing every move.
 |---|---|
 | **Project**, **Date** | The active project and, for multi-temporal projects, date. Every tab's default paths follow them. |
 | **GPU** / **CPU**, **Device #** | The device the detector runs on. Use CPU without a CUDA-capable GPU or when the GPU runs out of memory. |
-| **Detection model** | The model used by Detect, Express and Digitize. Mask R-CNN is built in; installed plug-ins also appear. See [Adding a detection model](developer/adding-a-detection-model.md). |
+| **Detection model** | The model used by Detect, Express and Digitize. Mask R-CNN is built in; models added from the Models tab (§4.13) appear here as soon as they are installed. |
+| **Add a model…** | Opens the Models tab, to install another detection model. |
 | **Reload model** | Drops the cached weights and frees GPU memory. Use it after replacing a weights file or after a model error. |
 | **What happened (optional)**, **Build diagnostic bundle** | Writes a zip of versions, configuration, logs and file names (no imagery, no measurements) to `~/.pebblemapper/feedback/`, to attach to an issue. |
+| **Check for updates automatically** | On by default: once a day, in the background, PebbleMapper asks GitHub whether a newer PebbleMapper or a newer release of an installed model exists, and shows a one-line notice under the header. Nothing is downloaded until you click **Update**. Off: no request at all; **Check now** on the Models tab still works (§2.6). |
 | **Stop PebbleMapper** | Shuts the server down. Queued jobs are saved and offered at the next start. |
 
 ### 2.5 Queues and the log console
@@ -243,6 +254,42 @@ Queues are saved on disk. After a shutdown with jobs pending, the next start sho
 *Interrupted queues from the previous session*. **Restore** brings the jobs back with their
 parameters; a job that was running returns as interrupted, and finished rows are checked
 against the files on disk. **Discard** archives them.
+
+### 2.6 Updating PebbleMapper
+
+A newer PebbleMapper is announced by a line under the header (if the daily check is on, §2.4)
+and on the Models tab, under **Updates**, with what changed and a link to the release notes.
+
+1. Click **Update** on the Models tab. PebbleMapper downloads the new version, checks every
+   file, builds its software beside the current one and tests it, in the background: you keep
+   working with the current version meanwhile, and the **Installing** section shows the steps.
+   It needs the space shown on the card (several GB, mostly the new software).
+2. When it says *ready*, click **Restart now**, or simply start PebbleMapper again later. The
+   server stops, the new version replaces the old one's files and starts, and the open page
+   reconnects by itself. A detection that is running is interrupted; queued jobs are offered
+   back.
+3. Only the files that came with PebbleMapper are replaced. Projects, results, model weights,
+   installed models and your own files in the PebbleMapper folder are not touched. If you had
+   changed a file that came with PebbleMapper (an example, a document), the new version's file
+   takes its place and yours is kept beside it with `.mine` added to its name; the first page
+   lists them.
+4. If the new version does not start, PebbleMapper puts the previous one back by itself and
+   says so on the first page, with **Build diagnostic bundle** to report it.
+
+The previous version is kept: the Models tab offers **Return to *version*** (applied at the next
+start) and **Remove *version***, which frees its space once you are happy with the new one.
+
+Updates from the app need PebbleMapper started from its desktop icon and a folder unpacked
+from a release file (§2.1, step 1). A copy downloaded with GitHub's **Code → Download ZIP**
+button, or a git clone, says so on the Models tab and is updated by hand.
+
+**Coming from PebbleMapper 1.0.** Version 1.0 cannot update itself. Download the newest
+release file and extract it to a new folder (§2.1, steps 1 and 2), then double-click
+**Install PebbleMapper** in it. The installer finds the 1.0 installation through the desktop
+icon and asks to update it: press **Enter**. Projects, results and weights stay where they
+were, the existing software is reused (nothing large to download), and the desktop icon keeps
+working. The folder you extracted to is no longer needed afterwards and can be deleted. From
+then on, updates come from the app.
 
 ---
 
@@ -680,6 +727,29 @@ One PDF built from every file in the active project.
 skipped with a note.
 
 ![A report page](screenshots/report-page.png)
+
+### 4.13 Models
+
+Installs, repairs and removes detection models other than the built-in Mask R-CNN, in one
+click, with no terminal and no restart (Windows). Opened from the tab bar or from **Add a
+model…** in the left drawer. The list of models comes from the maintainer
+(`github.com/soloyant/pebblemapper-models`); the app installs only what it names, each file
+checked against its checksum.
+
+| Section | Meaning |
+|---|---|
+| **Installing** | The install, repair or removal in progress: the step in plain words, step N of M, elapsed time and megabytes. **Cancel** stops it; an interrupted or cancelled install offers **Resume** (nothing already downloaded and checked is fetched again) or **Remove**. **Show details** shows the last lines of its log. |
+| **Installed** | Each installed model, its release, folder and size, with its citation (**copy** button). **Needs repair** appears, with the reason, when its files or software went missing; **Repair** restores it, reusing what is still intact. **Uninstall** removes it after confirming the space it frees; results made with it are kept. "A newer release exists" tells you an update is available. |
+| **installed manually** | A listed model declared by hand in `user_detectors.json`. PebbleMapper does not change or remove it. |
+| **Available** | Each listed model not yet installed: what it is, its licences, whether it will run on your graphics card or on the processor (or why it cannot run), the download size, the disk space needed and the time it usually takes, and **Install (N GB download)**. "Use the processor version" appears when a model offers both. |
+| **Updates** | **Check now**, the time of the last check, and one card per update: a newer PebbleMapper (§2.6) or a newer release of an installed model. A model update installs the new release beside the current one and selects it; the current release stays until you remove it, so an analysis can be finished with the release it started with. A release the maintainer withdrew is marked, with its replacement. After a PebbleMapper update, the previous version's **Return to** and **Remove** buttons are here too. |
+| **Models folder** | Where new models go, with the free space; **Change…** picks another folder. The default is an internal drive; a folder synced by OneDrive, Dropbox or Google Drive is refused, and a USB drive gets a warning (models there stop working while it is unplugged). |
+
+An install takes 2 to 40 minutes and 1.4 to 8.2 GB of disk depending on the model. While it
+runs, every other tab stays usable, the header shows its progress, the computer is kept awake,
+and the console window's title warns that closing it pauses the install. On battery below
+15 % it pauses until the computer is plugged in. Once installed, the model is in the
+**Detection model** list at once, and every result records the model's name and release.
 
 ---
 

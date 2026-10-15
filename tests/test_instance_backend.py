@@ -213,10 +213,45 @@ def test_missing_modules_accepts_an_editable_install(tmp_path):
     assert subprocess_runner.missing_modules(tmp_path, ("segmenteverygrain",)) == []
 
 
+# ---------------------------------------------------------------------------
+# 030: an app-installed model is addressed by its environment folder
+# ---------------------------------------------------------------------------
+
+def test_a_folder_env_is_available_without_conda_listing_it(monkeypatch, tmp_path):
+    from detectors import subprocess_runner
+    monkeypatch.setattr(subprocess_runner, "find_conda_exe", lambda: "conda")
+    monkeypatch.setattr(subprocess_runner, "_list_env_paths",
+                        lambda exe: pytest.fail("a folder env must not need conda env list"))
+    env = tmp_path / "orthosam-100-g" / "env"
+    (env / "conda-meta").mkdir(parents=True)
+    (env / "Lib" / "site-packages" / "cv2").mkdir(parents=True)
+    be = _Fake()
+    be.env_name = env
+    be.required_modules = ("cv2",)
+    be.script = _photo(tmp_path / "run.py")
+    assert be.is_available() is True
+    be.required_modules = ("cv2", "torch")
+    assert be.missing_modules() == ["torch"]
+    assert be.is_available() is False
+
+
+def test_a_processor_install_always_runs_on_the_cpu(tmp_path):
+    img = _photo(tmp_path / "q.jpg")
+    be = _Fake()
+    be.variant = "cpu"
+    be.detect_jobs("quadrat", [{"path": str(img)}], resolution=0.001,
+                   output_dir=str(tmp_path), devicemode="GPU")
+    assert be.specs[0]["params"]["devicemode"] == "CPU"
+    be = _Fake()
+    be.detect_jobs("quadrat", [{"path": str(img)}], resolution=0.001,
+                   output_dir=str(tmp_path), devicemode="GPU")
+    assert be.specs[0]["params"]["devicemode"] == "GPU"
+
+
 def test_a_single_pixel_instance_does_not_discard_the_image(tmp_path):
-    """One 1-pixel instance among 209 raised 'Singular matrix' in the ellipse
-    fit and the whole photograph came back with no clast. It is now skipped
-    and counted."""
+    """Found by the 030 OrthoSAM check run: one 1-pixel instance among 209
+    raised 'Singular matrix' in the ellipse fit and the whole photograph came
+    back with no clast. It is now skipped and counted."""
     lab = _labels()
     lab[5, 100] = 4                                   # a lone pixel
     img = _photo(tmp_path / "q.jpg")
@@ -226,3 +261,18 @@ def test_a_single_pixel_instance_does_not_discard_the_image(tmp_path):
                             output_dir=str(tmp_path), log_fn=logs.append)
     assert len(frames[0]) == 3
     assert any("1 unmeasurable skipped" in line for line in logs)
+
+
+def test_a_running_detection_marks_its_environment_in_use(tmp_path):
+    from detectors import instance_backend as ib
+    img = _photo(tmp_path / "q.jpg")
+    seen = []
+
+    class _Watching(_Fake):
+        def _run_streaming(self, spec, log_fn, stop_check, timeout):
+            seen.append(ib.environments_in_use())
+            return super()._run_streaming(spec, log_fn, stop_check, timeout)
+    _Watching().detect_jobs("quadrat", [{"path": str(img)}], resolution=0.001,
+                            output_dir=str(tmp_path))
+    assert seen == [{"nowhere"}]
+    assert ib.environments_in_use() == set()

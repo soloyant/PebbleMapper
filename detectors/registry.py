@@ -93,11 +93,25 @@ def selector_options() -> dict:
     Mask R-CNN is listed even when its weights are missing, so the choice
     stays valid and the run itself reports the problem."""
     show_dev = show_dev_backends()
+    avail = []
+    for key, b in _BACKENDS.items():
+        try:
+            if b.is_available():
+                avail.append((key, b))
+        except Exception:
+            pass
+    # Two releases of one model installed side by side are told apart by
+    # their release (030 US3 of 031: "NAME (release R)").
+    bases = [k.split("@")[0] for k, _ in avail]
     opts = {}
-    for b in available_backends():
+    for key, b in avail:
         if getattr(b.info, "dev_only", False) and not show_dev:
             continue
-        opts[b.info.name] = b.info.display_name
+        label = b.info.display_name
+        base, _, release = key.partition("@")
+        if release and bases.count(base) > 1:
+            label = f"{label} (release {release})"
+        opts[key] = label
     if _DEFAULT not in opts:
         d = _BACKENDS.get(_DEFAULT)
         opts = {_DEFAULT: d.info.display_name if d else "Mask R-CNN", **opts}
@@ -115,11 +129,13 @@ def default_backend_name() -> str:
     return _DEFAULT
 
 
-def register(backend: DetectorBackend) -> None:
+def register(backend: DetectorBackend, key: Optional[str] = None) -> None:
     """Add a backend to the registry.
 
     Third-party backends arrive here via :func:`load_user_backends`; call it
-    directly when embedding PebbleMapper as a library.
+    directly when embedding PebbleMapper as a library. ``key`` defaults to
+    ``backend.info.name``; a model installed from the Models tab is
+    registered as ``<name>@<release>`` so two releases can coexist.
     """
     if not isinstance(backend, DetectorBackend):
         raise TypeError(
@@ -128,7 +144,44 @@ def register(backend: DetectorBackend) -> None:
     name = getattr(getattr(backend, "info", None), "name", "")
     if not name:
         raise ValueError("backend.info.name must be a non-empty string")
-    _BACKENDS[name] = backend
+    _BACKENDS[key or name] = backend
+
+
+def installed_keys() -> List[str]:
+    """Registry keys of the models the app installed (``name@release``)."""
+    return [k for k in _BACKENDS if "@" in k]
+
+
+def load_installed_backends() -> List[str]:
+    """Register every model in ``~/.pebblemapper/models/installed.json``
+    (030 FR-014, FR-016). A release that cannot be loaded is logged and
+    skipped -- the start check (FR-043) shows it as Needs repair."""
+    from installer import registration
+    added: List[str] = []
+    for entry in registration.read_installed():
+        try:
+            pairs = registration.load_entry(entry)
+        except Exception as ex:
+            _log.warning("Installed model %s %s could not be loaded: %s",
+                         entry.get("id"), entry.get("release"), ex)
+            continue
+        for key, backend in pairs:
+            try:
+                register(backend, key=key)
+            except Exception as ex:
+                _log.warning("Installed model %s: %s", key, ex)
+                continue
+            added.append(key)
+    return added
+
+
+def reload_installed_backends() -> List[str]:
+    """Forget the app-installed models and register them again: called after
+    an install, repair or removal so the selector changes without a restart
+    (FR-035)."""
+    for key in installed_keys():
+        _BACKENDS.pop(key, None)
+    return load_installed_backends()
 
 
 def user_detectors_file() -> Optional[Path]:
@@ -238,3 +291,8 @@ try:
     load_user_backends()
 except Exception as _ex:                              # never block startup
     _log.warning("Detector discovery failed: %s: %s", type(_ex).__name__, _ex)
+try:
+    load_installed_backends()
+except Exception as _ex:                              # never block startup
+    _log.warning("Installed-model discovery failed: %s: %s",
+                 type(_ex).__name__, _ex)

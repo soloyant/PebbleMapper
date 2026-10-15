@@ -39,7 +39,7 @@ report
 
 # Bump whenever the report layout or numerical pipeline changes deliverable
 # output; the report cover footer carries it.
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 # --- GDAL error model ---

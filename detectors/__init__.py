@@ -9,6 +9,7 @@ from detectors.base import (  # noqa: F401
     CANONICAL_COLUMNS,
     DetectionManifest,
     DetectorBackend,
+    InstallContext,
     TOOL_VERSION,
     output_csv_name,
     run_detect_jobs,
@@ -25,7 +26,8 @@ from detectors.registry import (  # noqa: F401
 )
 
 __all__ = [
-    "DetectorBackend", "BackendInfo", "DetectionManifest", "CANONICAL_COLUMNS",
+    "DetectorBackend", "BackendInfo", "DetectionManifest", "InstallContext",
+    "CANONICAL_COLUMNS",
     "TOOL_VERSION", "output_csv_name", "run_detect_jobs", "all_backends",
     "available_backends", "get_backend", "default_backend_name", "register",
     "selector_options", "normalise_model_name", "InstanceSubprocessBackend",

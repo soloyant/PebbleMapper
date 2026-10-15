@@ -9,8 +9,8 @@ authors:
     given-names: Antoine
     orcid: "https://orcid.org/0000-0002-8597-2858"
     affiliation: "Continental and Coastal Morphodynamics Laboratory (M2C), University of Rouen Normandy, CNRS UMR 6143"
-version: 1.0.0
-date-released: 2026-09-20
+version: 1.1.0
+date-released: 2026-10-14
 license: MIT
 repository-code: "https://github.com/soloyant/pebblemapper"
 keywords:

@@ -529,3 +529,53 @@ def test_run_all_queued_refuses_without_the_weights_and_says_how_to_get_them(
     _press(col, "Run all queued")
     assert not started, "the run started without the weights"
     assert weights_missing_message() in notes
+
+
+def test_run_asks_about_another_release_only_once(clean, project, monkeypatch):
+    """031 US3: results of another release of the model in the project: Run
+    asks first (in a task, the dialog awaited), and once answered for this
+    project and model it starts at once, as it always did."""
+    from gui import app as A
+    import nicegui
+    from nicegui import background_tasks
+    from detectors import maskrcnn as _mr
+    monkeypatch.setattr(nicegui.ui, "run_javascript", lambda *a, **k: None)
+    monkeypatch.setattr(_mr.MaskRCNNBackend, "is_available", lambda self: True)
+    state, _ = clean
+    state.current_project = "P"
+    state.det_mode = "quadrat"
+    state.det_dir = ""
+    A._RELOAD_MODEL_BTN["btn"] = None
+    col = _build(clean)
+    inp = next(e for e in _walk(col) if e.__class__.__name__ == "Input"
+               and e._props.get("label") == "Image directory")
+    inp.value = str(project["images"])
+    _press(col, "Add to queue")
+    import detectors
+    real_get = detectors.get_backend
+    monkeypatch.setattr(A, "current_detection_model", lambda: ("orthosam@1.0.1", "OrthoSAM"))
+    monkeypatch.setattr(detectors, "get_backend",
+                        lambda name: real_get(name) or real_get("maskrcnn"))
+    monkeypatch.setattr(A, "_other_release_in_project", lambda key: "1.0.0")
+    tasks = []
+    monkeypatch.setattr(background_tasks, "create", lambda coro, **k: tasks.append(coro))
+    started = {}
+    import threading
+
+    class _NoThread:
+        def __init__(self, target=None, daemon=None, **kw):
+            pass
+
+        def start(self):
+            started["started"] = True
+    monkeypatch.setattr(threading, "Thread", _NoThread)
+    _press(col, "Run all queued")
+    assert len(tasks) == 1 and not started, "asked first, not started"
+    tasks[0].close()
+    A._RELEASE_ASKED.add(("P", "orthosam@1.0.1"))
+    try:
+        _press(col, "Run all queued")
+        assert len(tasks) == 1, "answered once: not asked again"
+        assert started.get("started"), "and the run starts at once"
+    finally:
+        A._RELEASE_ASKED.discard(("P", "orthosam@1.0.1"))

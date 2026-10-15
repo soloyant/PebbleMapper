@@ -50,7 +50,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -84,34 +83,8 @@ _ENV_LIST_CACHE: Dict[str, Tuple[float, List[str]]] = {}
 _ENV_CACHE_TTL_S = 30.0
 
 
-def find_conda_exe() -> Optional[str]:
-    """Locate a conda/mamba executable, or None.
-
-    Honours ``PEBBLE_CONDA_EXE`` first (explicit override), then the PATH, then
-    a handful of conventional install locations on Windows and POSIX.
-    """
-    env_override = os.environ.get("PEBBLE_CONDA_EXE")
-    if env_override and Path(env_override).exists():
-        return env_override
-    # A .bat/.cmd shim (what conda puts on PATH via condabin) does not launch
-    # reliably through subprocess.run's list form on Windows; try real exes first.
-    candidates = [
-        "C:/ProgramData/miniconda3/Scripts/conda.exe",
-        "C:/ProgramData/Anaconda3/Scripts/conda.exe",
-        os.path.expanduser("~/miniconda3/Scripts/conda.exe"),
-        os.path.expanduser("~/anaconda3/Scripts/conda.exe"),
-        os.path.expanduser("~/miniconda3/bin/conda"),
-        os.path.expanduser("~/anaconda3/bin/conda"),
-        "/opt/conda/bin/conda",
-    ]
-    exe = next((c for c in candidates if Path(c).exists()), None)
-    if exe:
-        return exe
-    for name in ("conda", "mamba", "micromamba"):
-        found = shutil.which(name)
-        if found:
-            return found
-    return None
+from functions.conda_locate import (  # noqa: F401  (re-exported)
+    _CONDA_LOCATION_FILE, _conda_from_location_file, find_conda_exe)
 
 
 def _list_env_paths(conda_exe: str) -> List[str]:
@@ -135,10 +108,23 @@ def _list_envs(conda_exe: str) -> List[str]:
     return [Path(p).name for p in _list_env_paths(conda_exe)]
 
 
-def conda_env_prefix(env: str, conda_exe: Optional[str] = None) -> Optional[Path]:
-    """The folder of the conda env named ``env``, or None."""
+def is_prefix_env(env) -> bool:
+    """True when ``env`` names an environment by its folder, not by its name.
+
+    Environments the app installs are addressed by folder (030 FR-009); a
+    ``Path`` always is, and so is a string holding a path separator.
+    """
+    return isinstance(env, Path) or (isinstance(env, str)
+                                     and ("/" in env or "\\" in env))
+
+
+def conda_env_prefix(env, conda_exe: Optional[str] = None) -> Optional[Path]:
+    """The folder of the conda env ``env`` (a name or a folder), or None."""
     if not env:
         return None
+    if is_prefix_env(env):
+        p = Path(env)
+        return p if (p / "conda-meta").is_dir() else None
     conda_exe = conda_exe or find_conda_exe()
     if not conda_exe:
         return None
@@ -178,22 +164,27 @@ def clear_env_cache() -> None:
     _ENV_LIST_CACHE.clear()
 
 
-def conda_env_exists(env: str, conda_exe: Optional[str] = None) -> bool:
-    """True if a conda env named ``env`` is installed and conda is reachable."""
+def conda_env_exists(env, conda_exe: Optional[str] = None) -> bool:
+    """True if the conda env ``env`` (a name or a folder) is installed and
+    conda is reachable."""
     if not env:
         return False
     conda_exe = conda_exe or find_conda_exe()
     if not conda_exe:
         return False
+    if is_prefix_env(env):
+        return (Path(env) / "conda-meta").is_dir()
     return env in _list_envs(conda_exe)
 
 
-def build_command(env: str, script, spec_path, conda_exe: str) -> List[str]:
+def build_command(env, script, spec_path, conda_exe: str) -> List[str]:
     """The exact ``conda run`` argv used to launch a subprocess backend.
 
-    Factored out so tests can assert on it without spawning a process.
+    ``env`` is a name (``-n``) or, for an app-installed model, a folder
+    (``-p``). Factored out so tests can assert on it without spawning a process.
     """
-    return [conda_exe, "run", "-n", env, "--no-capture-output",
+    flag = "-p" if is_prefix_env(env) else "-n"
+    return [conda_exe, "run", flag, str(env), "--no-capture-output",
             "python", str(script), "--spec", str(spec_path)]
 
 

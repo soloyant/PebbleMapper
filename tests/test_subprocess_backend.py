@@ -4,11 +4,13 @@
 # test runs only where the throwaway 'pebble-stub' conda env has been created
 # (`conda env create -f detectors/stub/environment.yml`); elsewhere it skips.
 import json
+import os
 
 import numpy as np
 import pytest
 
 from detectors import registry, subprocess_runner
+from functions import conda_locate
 from detectors.base import CANONICAL_COLUMNS
 from detectors.stub import run as stub_run
 from functions import modes
@@ -366,3 +368,74 @@ def test_stub_backend_cross_env_roundtrip(tmp_path):
     assert df["Ellipse_major_axis"].iloc[0] == pytest.approx(0.25, rel=0.03)
     # The child's own output was streamed into the log.
     assert any(ln.startswith("[stub] job 1/1") for ln in log)
+
+
+# ---------------------------------------------------------------------------
+# 030: one conda everywhere, environments addressed by folder (FR-009, FR-011)
+# ---------------------------------------------------------------------------
+
+def test_build_command_uses_p_for_a_folder(tmp_path):
+    env = tmp_path / "orthosam-100-g" / "env"
+    cmd = subprocess_runner.build_command(env, "/x/run.py", "/tmp/s.json", "conda")
+    assert cmd[:5] == ["conda", "run", "-p", str(env), "--no-capture-output"]
+    # A name keeps the old argv shape exactly.
+    cmd = subprocess_runner.build_command("pm-seg", "/x/run.py", "/tmp/s.json", "conda")
+    assert cmd[2:4] == ["-n", "pm-seg"]
+
+
+def test_prefix_env_exists_only_with_conda_meta(tmp_path, monkeypatch):
+    monkeypatch.setattr(subprocess_runner, "find_conda_exe", lambda: "conda")
+    env = tmp_path / "env"
+    env.mkdir()
+    assert not subprocess_runner.conda_env_exists(env)
+    assert subprocess_runner.conda_env_prefix(env) is None
+    (env / "conda-meta").mkdir()
+    assert subprocess_runner.conda_env_exists(env)
+    assert subprocess_runner.conda_env_prefix(env) == env
+
+
+def _fake_conda_root(root):
+    (root / "condabin").mkdir(parents=True)
+    (root / "condabin" / "conda.bat").write_text("@echo off")
+    (root / "Scripts").mkdir()
+    exe = root / "Scripts" / "conda.exe"
+    exe.write_text("")
+    return exe
+
+
+def test_conda_location_file_wins_over_fixed_search(tmp_path, monkeypatch):
+    exe = _fake_conda_root(tmp_path / "miniforge3")
+    loc = tmp_path / ".conda-location"
+    loc.write_text(str(tmp_path / "miniforge3" / "condabin" / "conda.bat") + "\r\n")
+    monkeypatch.delenv("PEBBLE_CONDA_EXE", raising=False)
+    monkeypatch.setattr(conda_locate, "_CONDA_LOCATION_FILE", loc)
+    assert conda_locate.find_conda_exe() == str(exe)
+
+
+def test_explicit_override_still_first(tmp_path, monkeypatch):
+    _fake_conda_root(tmp_path / "miniforge3")
+    loc = tmp_path / ".conda-location"
+    loc.write_text(str(tmp_path / "miniforge3" / "condabin" / "conda.bat"))
+    other = tmp_path / "other.exe"
+    other.write_text("")
+    monkeypatch.setattr(conda_locate, "_CONDA_LOCATION_FILE", loc)
+    monkeypatch.setenv("PEBBLE_CONDA_EXE", str(other))
+    assert conda_locate.find_conda_exe() == str(other)
+
+
+def test_unreadable_or_stale_location_file_falls_through(tmp_path):
+    assert conda_locate._conda_from_location_file(tmp_path / "missing") is None
+    stale = tmp_path / ".conda-location"
+    stale.write_text(str(tmp_path / "gone" / "condabin" / "conda.bat"))
+    assert conda_locate._conda_from_location_file(stale) is None
+
+
+def test_miniforge_in_the_fixed_search(tmp_path, monkeypatch):
+    exe = _fake_conda_root(tmp_path / "home" / "miniforge3")
+    monkeypatch.delenv("PEBBLE_CONDA_EXE", raising=False)
+    monkeypatch.setattr(conda_locate, "_CONDA_LOCATION_FILE", tmp_path / "none")
+    monkeypatch.setattr(conda_locate.os.path, "expanduser",
+                        lambda p: p.replace("~", str(tmp_path / "home")))
+    monkeypatch.setattr(conda_locate.Path, "exists",
+                        lambda self: str(self).startswith(str(tmp_path)) and os.path.exists(str(self)))
+    assert conda_locate.find_conda_exe() == os.path.expanduser("~/miniforge3/Scripts/conda.exe")

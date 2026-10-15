@@ -47,6 +47,21 @@ class BackendInfo:
     version: Optional[str] = None
 
 
+@dataclasses.dataclass(frozen=True)
+class InstallContext:
+    """Where the app installed one release of a plug-in (030 FR-015).
+
+    Passed to a plug-in factory as ``make_backend(ctx)`` for a model installed
+    from the Models tab; ``None`` for a plug-in declared by hand in
+    ``user_detectors.json``, which keeps reading its own settings.
+    """
+    env_prefix: Path        # the model's conda environment, by folder
+    weights_dir: Path       # where the list's weights files were placed
+    code_dir: Path          # the unpacked release (upstream sources under it)
+    release: str            # e.g. "1.0.0"; leads the manifest's model_version
+    variant: str = "gpu"    # "gpu" | "cpu"; a cpu install always runs on the CPU
+
+
 @dataclasses.dataclass
 class DetectionManifest:
     """Provenance sidecar written next to each detection CSV (best-effort)."""

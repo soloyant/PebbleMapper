@@ -63,3 +63,47 @@ def test_two_manifests_of_the_same_name_both_reach_the_bundle(tmp_path, monkeypa
     with zipfile.ZipFile(out) as zf:
         entries = [n for n in zf.namelist() if "manifests/" in n]
     assert len(entries) == 2 and len(set(entries)) == 2
+
+
+def test_bundle_holds_the_installed_models_and_the_last_failed_install(tmp_path, monkeypatch):
+    import zipfile
+    from functions import feedback
+    monkeypatch.setenv("PEBBLEMAPPER_HOME", str(tmp_path / "home"))
+    home = tmp_path / "home"
+    (home / "models").mkdir(parents=True)
+    (home / "models" / "installed.json").write_text('{"format": 1, "models": []}',
+                                                    encoding="utf-8")
+    jd = home / "jobs" / "20261014-000000-abcdef"
+    jd.mkdir(parents=True)
+    (jd / "job.json").write_text(json.dumps({"state": "failed"}), encoding="utf-8")
+    (jd / "job.log").write_text(f"error under {Path.home() / 'x'}", encoding="utf-8")
+    ok = home / "jobs" / "20261014-000001-123456"
+    ok.mkdir()
+    (ok / "job.json").write_text(json.dumps({"state": "done"}), encoding="utf-8")
+    out = feedback.build_bundle(None, note="")
+    with zipfile.ZipFile(out) as zf:
+        names = zf.namelist()
+        assert "models/installed.json" in names
+        assert "models/last-failed-job/job.log" in names
+        assert str(Path.home()) not in zf.read("models/last-failed-job/job.log").decode()
+
+
+def test_bundle_holds_the_app_update_state(tmp_path, monkeypatch):
+    """031 T026: the starter's pointer, the file list, the switch journal and
+    the last update check."""
+    import zipfile
+    from functions import feedback
+    monkeypatch.setenv("PEBBLEMAPPER_HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    (tmp_path / "home" / "updates.json").write_text('{"last_result": "ok"}', encoding="utf-8")
+    app = tmp_path / "app"
+    (app / ".pm-update").mkdir(parents=True)
+    (app / ".pm-version.json").write_text('{"current": "1.1.0"}', encoding="utf-8")
+    (app / ".pm-files.json").write_text('{"files": []}', encoding="utf-8")
+    (app / ".pm-update" / "journal.json").write_text('{"journal": []}', encoding="utf-8")
+    monkeypatch.setattr(feedback, "APP_DIR", app)
+    out = feedback.build_bundle(None, note="")
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+    assert {"app/pm-version.json", "app/pm-files.json", "app/pm-update-journal.json",
+            "app/updates.json"} <= names

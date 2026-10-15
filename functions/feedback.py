@@ -25,6 +25,7 @@ from functions.layout import app_home, get_datasets_root
 ISSUES_URL = "https://github.com/soloyant/pebblemapper/issues"
 MAX_LOG_BYTES = 2_000_000       # per file
 MAX_LOG_FILES = 40
+APP_DIR = Path(__file__).resolve().parents[1]   # where the starter keeps its pointer
 
 
 def _versions() -> dict:
@@ -134,6 +135,35 @@ def build_bundle(project_root: Optional[Path] = None, note: str = "",
         crumb = home / "last-session.json"
         if crumb.is_file():
             _add_file(zf, crumb, "app/last-session.json")
+        # Installed models and the most recent failed or interrupted install
+        # (spec 030 FR-037): the record, the job state and its log.
+        inst = home / "models" / "installed.json"
+        if inst.is_file():
+            _add_file(zf, inst, "models/installed.json")
+        jobs_dir = home / "jobs"
+        if jobs_dir.is_dir():
+            bad = []
+            for jd in jobs_dir.iterdir():
+                try:
+                    j = json.loads((jd / "job.json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if j.get("state") in ("failed", "interrupted", "cancelled"):
+                    bad.append((jd.stat().st_mtime, jd))
+            for _, jd in sorted(bad, reverse=True)[:1]:
+                for name in ("job.json", "job.log"):
+                    if (jd / name).is_file():
+                        _add_file(zf, jd / name, f"models/last-failed-job/{name}")
+        # PebbleMapper's own updates (spec 031 T026): the starter's pointer
+        # (current, previous, last switch and its result) and the journal.
+        app_dir = APP_DIR
+        for rel, arc in ((".pm-version.json", "app/pm-version.json"),
+                         (".pm-files.json", "app/pm-files.json"),
+                         (".pm-update/journal.json", "app/pm-update-journal.json")):
+            if (app_dir / rel).is_file():
+                _add_file(zf, app_dir / rel, arc)
+        if (home / "updates.json").is_file():           # the last check and its result
+            _add_file(zf, home / "updates.json", "app/updates.json")
         for sub in ("logs", "queues"):
             d = home / sub
             if d.is_dir():

@@ -34,6 +34,14 @@
     Use the conda installed in this folder, or install Miniforge there when
     the folder holds none, instead of looking for an existing conda.
 
+.PARAMETER UpdateFolder
+    Update the PebbleMapper installed in this folder to the version unpacked
+    here, without asking. Its projects, results and weights stay in place.
+
+.PARAMETER NoUpdateExisting
+    Do not offer to update the installation the desktop shortcut points to;
+    install separately in this folder.
+
 .EXAMPLE
     .\install.ps1
 
@@ -46,7 +54,9 @@ param(
     [switch]$SkipWeights,
     [switch]$Cpu,
     [switch]$NoShortcut,
-    [string]$CondaRoot
+    [string]$CondaRoot,
+    [string]$UpdateFolder,
+    [switch]$NoUpdateExisting
 )
 
 $ErrorActionPreference = 'Stop'
@@ -147,6 +157,58 @@ Assert-ShortRoot (Split-Path (Split-Path $conda))
 $condaBat = Join-Path (Split-Path (Split-Path $conda)) 'condabin\conda.bat'
 Set-Content -Path (Join-Path $repo '.conda-location') -Value $condaBat -Encoding ascii
 
+# ------------------------------------------------ an earlier installation --
+# The starter runs on conda's own Python, so it needs no app environment.
+$basePy = Join-Path (Split-Path (Split-Path $conda)) 'python.exe'
+$starter = Join-Path $repo 'pm_starter.py'
+# A PebbleMapper installed before (1.0.x has no in-app updates) is found
+# through the desktop shortcut and updated in place by the release unpacked
+# here, so its projects, results and weights stay where they are.
+function Find-EarlierInstall {
+    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'PebbleMapper.lnk'
+    if (-not (Test-Path $lnk)) { return $null }
+    try { $t = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk).TargetPath } catch { return $null }
+    if (-not $t) { return $null }
+    $dir = Split-Path $t
+    if ((Split-Path $t -Leaf) -eq 'launch_gui.bat') { $dir = Split-Path $dir }
+    if (-not (Test-Path (Join-Path $dir 'functions\__init__.py'))) { return $null }
+    if (Test-Path (Join-Path $dir '.git')) { return $null }
+    $dir = (Resolve-Path $dir).Path
+    if ($dir -eq (Resolve-Path $repo).Path) { return $null }
+    return $dir
+}
+$earlier = $null
+if ($UpdateFolder) {
+    $earlier = $UpdateFolder
+}
+elseif (-not $NoUpdateExisting -and (Test-Path $starter)) {
+    $earlier = Find-EarlierInstall
+    if ($earlier) {
+        Write-Host ""
+        Write-Host "    PebbleMapper is already installed in $earlier" -ForegroundColor Yellow
+        Write-Host "    Your projects, results and model weights are there."
+        $answer = Read-Host "    Update that installation to this version, keeping all of them? [Y/n]"
+        if ($answer -match '^\s*[nN]') {
+            $earlier = $null
+            Warn "installing separately in $repo"
+        }
+    }
+}
+if ($earlier) {
+    if (-not (Test-Path (Join-Path $repo '.pm-files.json'))) {
+        Fail ("This folder was not unpacked from a release download, so it cannot update $earlier. " +
+              "Download the release ZIP from https://github.com/soloyant/PebbleMapper/releases.")
+    }
+    Say "updating the installation in $earlier"
+    & $basePy $starter --migrate-into $earlier
+    if ($LASTEXITCODE -ne 0) {
+        Fail "The installation in $earlier could not be updated; it was left as it was. See the message above."
+    }
+    $repo = $earlier
+    Set-Content -Path (Join-Path $repo '.conda-location') -Value $condaBat -Encoding ascii
+    Ok "updated; the folder you ran this installer from is no longer needed and can be deleted"
+}
+
 # ------------------------------------------------------------------ GPU ----
 $useGpu = -not $Cpu
 if ($useGpu) {
@@ -243,13 +305,25 @@ Say "checking the install"
 & $conda run -n $envName --no-capture-output --cwd $repo python (Join-Path $repo 'tools\check_install.py')
 if ($LASTEXITCODE -ne 0) { Fail "The environment was built but the check failed. See the messages above." }
 
+# --------------------------------------------------- the starter's record --
+# What is installed and in which environment, for the starter that applies
+# updates (spec 031). A copy without the starter starts the old way.
+$starter = Join-Path $repo 'pm_starter.py'
+$launcher = Join-Path $repo 'gui\launch_gui.bat'
+if (Test-Path $starter) {
+    & $basePy $starter --record-install
+    if ($LASTEXITCODE -ne 0) { Fail "Could not record the installation. See the message above." }
+    $launcher = Join-Path $repo 'PebbleMapper.cmd'
+    Ok "recorded the installed version for in-app updates"
+}
+
 # -------------------------------------------------------------- shortcut ---
 if (-not $NoShortcut) {
     $desktop = [Environment]::GetFolderPath('Desktop')
     $lnk = Join-Path $desktop 'PebbleMapper.lnk'
     $shell = New-Object -ComObject WScript.Shell
     $sc = $shell.CreateShortcut($lnk)
-    $sc.TargetPath = Join-Path $repo 'gui\launch_gui.bat'
+    $sc.TargetPath = $launcher
     $sc.WorkingDirectory = $repo
     $sc.IconLocation = (Join-Path $repo 'gui\icon.ico') + ',0'
     $sc.Description = 'Start PebbleMapper'
@@ -266,6 +340,6 @@ if (-not $NoShortcut) {
     Write-Host "    Start it with the PebbleMapper icon on the desktop."
 }
 else {
-    Write-Host "    Start it by double-clicking gui\launch_gui.bat."
+    Write-Host "    Start it by double-clicking $(Split-Path $launcher -Leaf) in $(Split-Path $launcher)."
 }
 Write-Host ""
